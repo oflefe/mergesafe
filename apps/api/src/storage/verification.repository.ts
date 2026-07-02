@@ -1,17 +1,19 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   PullRequestRecord,
   RepositoryRecord,
   VerificationRequest,
   VerificationResult,
-} from '../domain/types';
-import { DATABASE_POOL, DatabasePool } from './database.pool';
+} from "../domain/types";
+import { DATABASE_POOL, DatabasePool } from "./database.pool";
 
 @Injectable()
 export class VerificationRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: DatabasePool) {}
 
-  async upsertFromRequest(request: VerificationRequest): Promise<PullRequestRecord> {
+  async upsertFromRequest(
+    request: VerificationRequest,
+  ): Promise<PullRequestRecord> {
     const repoId = request.repoId || `${request.repoOwner}/${request.repoName}`;
     await this.pool.query(
       `INSERT INTO repositories (id, owner, name)
@@ -139,7 +141,7 @@ export class VerificationRepository {
 
   async listRepositories(): Promise<RepositoryRecord[]> {
     const result = await this.pool.query<RepositoryRecord>(
-      'SELECT id, owner, name FROM repositories ORDER BY id',
+      "SELECT id, owner, name FROM repositories ORDER BY id",
     );
     return result.rows;
   }
@@ -178,7 +180,9 @@ export class VerificationRepository {
     return result.rows.map((row) => this.mapPullRequestRow(row));
   }
 
-  async getPullRequest(pullRequestId: string): Promise<PullRequestRecord | undefined> {
+  async getPullRequest(
+    pullRequestId: string,
+  ): Promise<PullRequestRecord | undefined> {
     const result = await this.pool.query<PullRequestRow>(
       `SELECT
         pr.id,
@@ -212,17 +216,30 @@ export class VerificationRepository {
     return row ? this.mapPullRequestRow(row) : undefined;
   }
 
-  private async persistChangedFiles(runId: number, request: VerificationRequest): Promise<void> {
+  private async persistChangedFiles(
+    runId: number,
+    request: VerificationRequest,
+  ): Promise<void> {
     for (const file of request.changedFiles) {
       await this.pool.query(
         `INSERT INTO changed_files (verification_run_id, path, status, additions, deletions, patch)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [runId, file.path, file.status ?? null, file.additions ?? null, file.deletions ?? null, file.patch ?? null],
+        [
+          runId,
+          file.path,
+          file.status ?? null,
+          file.additions ?? null,
+          file.deletions ?? null,
+          file.patch ?? null,
+        ],
       );
     }
   }
 
-  private async persistRiskFindings(runId: number, result: VerificationResult): Promise<void> {
+  private async persistRiskFindings(
+    runId: number,
+    result: VerificationResult,
+  ): Promise<void> {
     for (const finding of result.riskFindings) {
       await this.pool.query(
         `INSERT INTO risk_findings (verification_run_id, code, weight, reason)
@@ -232,7 +249,10 @@ export class VerificationRepository {
     }
   }
 
-  private async persistVerificationRequirements(runId: number, result: VerificationResult): Promise<void> {
+  private async persistVerificationRequirements(
+    runId: number,
+    result: VerificationResult,
+  ): Promise<void> {
     for (const requirement of result.verificationRequirements) {
       await this.pool.query(
         `INSERT INTO verification_requirements (verification_run_id, code, message)
@@ -242,7 +262,10 @@ export class VerificationRepository {
     }
   }
 
-  private async persistCheckRunSnapshots(runId: number, request: VerificationRequest): Promise<void> {
+  private async persistCheckRunSnapshots(
+    runId: number,
+    request: VerificationRequest,
+  ): Promise<void> {
     for (const checkRun of request.checkRuns) {
       await this.pool.query(
         `INSERT INTO check_run_snapshots (verification_run_id, name, status, conclusion)
@@ -252,7 +275,10 @@ export class VerificationRepository {
     }
   }
 
-  private async persistExternalReviewFindings(runId: number, result: VerificationResult): Promise<void> {
+  private async persistExternalReviewFindings(
+    runId: number,
+    result: VerificationResult,
+  ): Promise<void> {
     for (const finding of result.externalReviewFindings) {
       await this.pool.query(
         `INSERT INTO external_review_findings (verification_run_id, source, author, body)
@@ -262,7 +288,10 @@ export class VerificationRepository {
     }
   }
 
-  private async upsertPolicy(repoId: string, policyText: string | undefined): Promise<void> {
+  private async upsertPolicy(
+    repoId: string,
+    policyText: string | undefined,
+  ): Promise<void> {
     if (!policyText) {
       return;
     }
@@ -297,9 +326,13 @@ export class VerificationRepository {
       riskScore: row.risk_score,
       commentId: this.toOptionalNumber(row.latest_comment_id),
       checkRunId: this.toOptionalNumber(row.latest_check_run_id),
-      latestVerificationRunId: this.toOptionalNumber(row.latest_verification_run_id),
-      latestVerification: (row.result_json as VerificationResult | null) ?? undefined,
-      lastRequest: (row.request_json as VerificationRequest | null) ?? undefined,
+      latestVerificationRunId: this.toOptionalNumber(
+        row.latest_verification_run_id,
+      ),
+      latestVerification:
+        (row.result_json as VerificationResult | null) ?? undefined,
+      lastRequest:
+        (row.request_json as VerificationRequest | null) ?? undefined,
     };
   }
 
@@ -327,7 +360,7 @@ interface PullRequestRow {
   installation_id: number | string | null;
   github_pull_request_id: number | string | null;
   risk_score: number;
-  verdict: VerificationResult['verdict'];
+  verdict: VerificationResult["verdict"];
   latest_comment_id: number | string | null;
   latest_check_run_id: number | string | null;
   latest_verification_run_id: number | string | null;

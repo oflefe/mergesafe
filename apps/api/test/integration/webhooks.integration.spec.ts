@@ -443,7 +443,10 @@ describe("GitHubWebhookController", () => {
   it("GIVEN a persisted pull request WHEN recheck is called THEN it reloads PR identity and refetches evidence", async () => {
     const fakeGitHubClient = new FakeGitHubClient();
     const fakeEvidenceFetcher = new FakeEvidenceFetcher();
-    const { app, moduleRef } = await buildApp(fakeGitHubClient, fakeEvidenceFetcher);
+    const { app, moduleRef } = await buildApp(
+      fakeGitHubClient,
+      fakeEvidenceFetcher,
+    );
 
     await request(app.getHttpServer())
       .post("/webhooks/github")

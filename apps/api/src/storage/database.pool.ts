@@ -1,6 +1,6 @@
-import { Pool, type QueryResult, type QueryResultRow } from 'pg';
+import { Pool, type QueryResult, type QueryResultRow } from "pg";
 
-export const DATABASE_POOL = Symbol('DATABASE_POOL');
+export const DATABASE_POOL = Symbol("DATABASE_POOL");
 
 export interface DatabasePool {
   query<T extends QueryResultRow = QueryResultRow>(
@@ -10,6 +10,8 @@ export interface DatabasePool {
 }
 
 export function createDatabasePool(): DatabasePool {
-  const connectionString = process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/mergesafe';
+  const connectionString =
+    process.env.DATABASE_URL ??
+    "postgres://postgres:postgres@localhost:5432/mergesafe";
   return new Pool({ connectionString });
 }

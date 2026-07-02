@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Inject, NotFoundException, Param, Post } from '@nestjs/common';
-import { GitHubEvidenceFetcher } from '../github/github-evidence-fetcher';
-import { VerificationRepository } from '../storage/verification.repository';
-import { VERIFICATION_QUEUE, VerificationQueue } from '../queue/verification-queue';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+} from "@nestjs/common";
+import { GitHubEvidenceFetcher } from "../github/github-evidence-fetcher";
+import { VerificationRepository } from "../storage/verification.repository";
+import {
+  VERIFICATION_QUEUE,
+  VerificationQueue,
+} from "../queue/verification-queue";
 
 @Controller()
 export class PullRequestsController {
@@ -11,8 +22,8 @@ export class PullRequestsController {
     @Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueue,
   ) {}
 
-  @Get('prs/:id/verification')
-  async getVerification(@Param('id') id: string) {
+  @Get("prs/:id/verification")
+  async getVerification(@Param("id") id: string) {
     const pullRequest = await this.repository.getPullRequest(id);
     if (!pullRequest?.latestVerification) {
       throw new NotFoundException(`Verification for ${id} not found`);
@@ -20,8 +31,11 @@ export class PullRequestsController {
     return pullRequest.latestVerification;
   }
 
-  @Post('prs/:id/recheck')
-  async recheck(@Param('id') id: string, @Body() _body: { repositoryFiles?: Record<string, string> } = {}) {
+  @Post("prs/:id/recheck")
+  async recheck(
+    @Param("id") id: string,
+    @Body() _body: { repositoryFiles?: Record<string, string> } = {},
+  ) {
     const pullRequest = await this.repository.getPullRequest(id);
     if (!pullRequest) {
       throw new NotFoundException(`Pull request ${id} not found`);
@@ -48,7 +62,7 @@ export class PullRequestsController {
       baseBranch: pullRequest.baseBranch,
       headSha: pullRequest.headSha,
       author: pullRequest.author,
-      action: 'recheck' as const,
+      action: "recheck" as const,
       installationId: pullRequest.installationId,
       commits: evidence.commits,
       changedFiles: evidence.changedFiles,

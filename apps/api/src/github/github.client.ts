@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { createPrivateKey, createSign } from 'node:crypto';
-import { Buffer } from 'node:buffer';
-import { VerificationRequest, VerificationResult } from '../domain/types';
+import { Injectable, Logger } from "@nestjs/common";
+import { createPrivateKey, createSign } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { VerificationRequest, VerificationResult } from "../domain/types";
 
 function base64url(value: string): string {
-  return Buffer.from(value).toString('base64url');
+  return Buffer.from(value).toString("base64url");
 }
 
 @Injectable()
@@ -17,7 +17,9 @@ export class GitHubAppClient {
     body: string,
     existingCommentId?: number,
   ): Promise<number> {
-    const token = request.installationId ? await this.getInstallationToken(request.installationId) : null;
+    const token = request.installationId
+      ? await this.getInstallationToken(request.installationId)
+      : null;
     if (!token) {
       this.logger.log(
         `Verification comment updated for ${request.repoOwner}/${request.repoName}#${request.pullNumber}`,
@@ -30,7 +32,7 @@ export class GitHubAppClient {
         token,
         `https://api.github.com/repos/${request.repoOwner}/${request.repoName}/issues/comments/${existingCommentId}`,
         {
-          method: 'PATCH',
+          method: "PATCH",
           body: JSON.stringify({ body }),
         },
       );
@@ -41,7 +43,7 @@ export class GitHubAppClient {
       token,
       `https://api.github.com/repos/${request.repoOwner}/${request.repoName}/issues/${request.pullNumber}/comments`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({ body }),
       },
     );
@@ -52,11 +54,13 @@ export class GitHubAppClient {
     request: VerificationRequest,
     result: VerificationResult,
   ): Promise<number | undefined> {
-    const token = request.installationId ? await this.getInstallationToken(request.installationId) : null;
+    const token = request.installationId
+      ? await this.getInstallationToken(request.installationId)
+      : null;
     const payload = {
-      name: 'Agentic PR Verification',
+      name: "Agentic PR Verification",
       head_sha: request.headSha,
-      status: 'completed',
+      status: "completed",
       conclusion: result.checkConclusion,
       output: {
         title: `${result.verdict.toUpperCase()} — ${result.riskScore}/100`,
@@ -66,7 +70,9 @@ export class GitHubAppClient {
     };
 
     if (!token) {
-      this.logger.log(`Check run recorded for ${request.repoOwner}/${request.repoName}#${request.pullNumber}`);
+      this.logger.log(
+        `Check run recorded for ${request.repoOwner}/${request.repoName}#${request.pullNumber}`,
+      );
       return undefined;
     }
 
@@ -74,17 +80,19 @@ export class GitHubAppClient {
       token,
       `https://api.github.com/repos/${request.repoOwner}/${request.repoName}/check-runs`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(payload),
         headers: {
-          Accept: 'application/vnd.github+json',
+          Accept: "application/vnd.github+json",
         },
       },
     );
     return response.id as number | undefined;
   }
 
-  private async getInstallationToken(installationId: number): Promise<string | null> {
+  private async getInstallationToken(
+    installationId: number,
+  ): Promise<string | null> {
     const appId = process.env.GITHUB_APP_ID;
     const privateKey = process.env.GITHUB_PRIVATE_KEY;
     if (!appId || !privateKey) {
@@ -92,7 +100,7 @@ export class GitHubAppClient {
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
     const payload = base64url(
       JSON.stringify({
         iat: now - 60,
@@ -100,21 +108,21 @@ export class GitHubAppClient {
         iss: appId,
       }),
     );
-    const signer = createSign('RSA-SHA256');
+    const signer = createSign("RSA-SHA256");
     signer.update(`${header}.${payload}`);
     const signature = signer
-      .sign(createPrivateKey(privateKey.replace(/\\n/g, '\n')))
-      .toString('base64url');
+      .sign(createPrivateKey(privateKey.replace(/\\n/g, "\n")))
+      .toString("base64url");
     const jwt = `${header}.${payload}.${signature}`;
 
     const response = await fetch(
       `https://api.github.com/app/installations/${installationId}/access_tokens`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          Authorization: 'Bearer ' + jwt,
-          Accept: 'application/vnd.github+json',
-          'User-Agent': 'mergesafe',
+          Authorization: "Bearer " + jwt,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "mergesafe",
         },
       },
     );
@@ -135,14 +143,16 @@ export class GitHubAppClient {
     const response = await fetch(url, {
       ...init,
       headers: {
-        Authorization: 'Bearer ' + token,
-        'User-Agent': 'mergesafe',
-        'Content-Type': 'application/json',
+        Authorization: "Bearer " + token,
+        "User-Agent": "mergesafe",
+        "Content-Type": "application/json",
         ...(init.headers ?? {}),
       },
     });
     if (!response.ok) {
-      throw new Error(`GitHub API request failed (${response.status}) for ${url}`);
+      throw new Error(
+        `GitHub API request failed (${response.status}) for ${url}`,
+      );
     }
     return (await response.json()) as Record<string, unknown>;
   }

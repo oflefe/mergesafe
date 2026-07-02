@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { GitHubAppClient } from '../github/github.client';
-import { VerificationRequest, VerificationResult } from '../domain/types';
-import { VerificationRepository } from '../storage/verification.repository';
-import { VerificationService } from './verification.service';
+import { Injectable } from "@nestjs/common";
+import { GitHubAppClient } from "../github/github.client";
+import { VerificationRequest, VerificationResult } from "../domain/types";
+import { VerificationRepository } from "../storage/verification.repository";
+import { VerificationService } from "./verification.service";
 
 @Injectable()
 export class VerificationOrchestrator {
@@ -20,7 +20,10 @@ export class VerificationOrchestrator {
       result.commentBody,
       pullRequestRecord.commentId,
     );
-    const checkRunId = await this.githubClient.createOrUpdateCheckRun(request, result);
+    const checkRunId = await this.githubClient.createOrUpdateCheckRun(
+      request,
+      result,
+    );
     await this.repository.saveVerificationResult(
       pullRequestRecord.id,
       result,
