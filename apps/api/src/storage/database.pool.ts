@@ -71,7 +71,9 @@ class PgDatabaseClient implements DatabaseClient {
   }
 }
 
-export function createDatabaseClientFromPool(pool: DatabasePoolLike): DatabaseClient {
+export function createDatabaseClientFromPool(
+  pool: DatabasePoolLike,
+): DatabaseClient {
   return new PgDatabaseClient(pool);
 }
 

@@ -142,7 +142,10 @@ describe("VerificationRepository", () => {
 
   it("GIVEN a query failure after run insert WHEN saving verification result THEN transaction rolls back all writes", async () => {
     const baseDatabase = createTestDatabaseClient();
-    const failingDatabase = createFailingDatabaseClient(baseDatabase, /INSERT INTO changed_files/);
+    const failingDatabase = createFailingDatabaseClient(
+      baseDatabase,
+      /INSERT INTO changed_files/,
+    );
     const repository = new VerificationRepository(failingDatabase);
 
     const pr = await repository.upsertFromRequest(safeDocsPr);
@@ -158,7 +161,9 @@ describe("VerificationRepository", () => {
       },
       policyFailures: [],
       verificationRequirements: [{ code: "add-tests", message: "Add tests" }],
-      externalReviewFindings: [{ source: "copilot-review", author: "bot", body: "missing tests" }],
+      externalReviewFindings: [
+        { source: "copilot-review", author: "bot", body: "missing tests" },
+      ],
       ciPassed: false,
       ciSummary: "ci pending",
       likelyAgentAuthored: true,
@@ -171,7 +176,9 @@ describe("VerificationRepository", () => {
       repository.saveVerificationResult(pr.id, result, safeDocsPr, 321, 654),
     ).rejects.toThrow("simulated changed files insert failure");
 
-    const changedFiles = await baseDatabase.query("SELECT id FROM changed_files");
+    const changedFiles = await baseDatabase.query(
+      "SELECT id FROM changed_files",
+    );
     const updatedPr = await baseDatabase.query(
       "SELECT latest_verification_run_id FROM pull_requests WHERE id = $1",
       [pr.id],
