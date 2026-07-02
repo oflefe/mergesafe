@@ -1,9 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { VerificationRequest, VerificationResult } from '../domain/types';
-import { summarizeExternalFindings, buildVerificationComment, summarizeCi } from './report';
+import {
+  RiskLevel,
+  Verdict,
+  VerificationRequest,
+  VerificationResult,
+} from '../domain/types';
+import { summarizeCiEvidence } from './ci-evidence-summary';
+import { extractExternalReviewFindings } from './external-review-findings';
 import { PolicyConfigError, PolicyLoader } from './policy-loader';
 import { evaluatePolicy } from './policy-evaluator';
+import { renderVerificationReport } from './report-renderer';
 import { scoreRisk } from './risk-scoring';
+import { suggestTestCommands } from './test-command-suggestion';
 import { mapImpactedTests } from './test-impact';
 
 @Injectable()
@@ -11,11 +19,18 @@ export class VerificationService {
   constructor(private readonly policyLoader: PolicyLoader) {}
 
   verify(request: VerificationRequest): VerificationResult {
-    const testImpact = mapImpactedTests(
+    const testImpactMapping = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
+    );
+    const suggestedCommands = suggestTestCommands(
+      testImpactMapping,
       request.repositoryScripts,
     );
+    const testImpact = {
+      ...testImpactMapping,
+      suggestedCommands,
+    };
     const ciPassed =
       request.checkRuns.length > 0 &&
       request.checkRuns.every(
@@ -24,15 +39,10 @@ export class VerificationService {
           checkRun.conclusion === 'neutral' ||
           checkRun.conclusion === 'skipped',
       );
-    const externalReviewFindings = summarizeExternalFindings(request.reviewComments);
-    const ciSummary = summarizeCi(
-      testImpact.suggestedCommands,
-      ciPassed,
-      request.checkRuns.map((checkRun) => ({
-        name: checkRun.name,
-        conclusion: checkRun.conclusion,
-      })),
+    const externalReviewFindings = extractExternalReviewFindings(
+      request.reviewComments,
     );
+    const ciSummary = summarizeCiEvidence(request.checkRuns, ciPassed);
 
     try {
       const policy = this.policyLoader.load(request.policyText);
@@ -59,28 +69,36 @@ export class VerificationService {
       }
 
       const policyFailureVerdict = policyEvaluation.policyFailures.some(
-        (failure) => failure.verdict === 'fail',
+        (failure) => failure.verdict === Verdict.FAIL,
       )
-        ? 'fail'
-        : policyEvaluation.policyFailures.some((failure) => failure.verdict === 'needs_review')
-          ? 'neutral'
-          : 'pass';
+        ? Verdict.FAIL
+        : policyEvaluation.policyFailures.some(
+              (failure) => failure.verdict === Verdict.NEEDS_REVIEW,
+            )
+          ? Verdict.NEEDS_REVIEW
+          : Verdict.PASS;
       const verdict =
-        policyFailureVerdict === 'fail' || risk.riskScore >= 80
-          ? 'fail'
-          : policyFailureVerdict === 'neutral' || !ciPassed || risk.riskScore >= 35
-            ? 'neutral'
-            : 'pass';
+        policyFailureVerdict === Verdict.FAIL || risk.riskLevel === RiskLevel.CRITICAL
+          ? Verdict.FAIL
+          : policyFailureVerdict === Verdict.NEEDS_REVIEW ||
+              !ciPassed ||
+              risk.riskLevel === RiskLevel.HIGH ||
+              risk.riskLevel === RiskLevel.MEDIUM
+            ? Verdict.NEEDS_REVIEW
+            : Verdict.PASS;
       const checkConclusion =
-        policyEvaluation.policyFailures.some((failure) => failure.verdict === 'fail') ||
-        risk.riskScore >= 80
+        policyEvaluation.policyFailures.some(
+          (failure) => failure.verdict === Verdict.FAIL,
+        ) ||
+        risk.riskLevel === RiskLevel.CRITICAL
           ? 'failure'
-          : verdict === 'pass'
+          : verdict === Verdict.PASS
             ? 'success'
             : 'neutral';
 
-      const commentBody = buildVerificationComment({
+      const commentBody = renderVerificationReport({
         riskScore: risk.riskScore,
+        riskLevel: risk.riskLevel,
         verdict,
         riskFindings: risk.riskFindings,
         verificationRequirements,
@@ -94,6 +112,7 @@ export class VerificationService {
         pullRequestId: `${request.repoId}#${request.pullNumber}`,
         repoId: request.repoId,
         riskScore: risk.riskScore,
+        riskLevel: risk.riskLevel,
         riskFindings: risk.riskFindings,
         testImpact,
         policyFailures: policyEvaluation.policyFailures,
@@ -118,9 +137,10 @@ export class VerificationService {
           message: failureMessage,
         },
       ];
-      const commentBody = buildVerificationComment({
+      const commentBody = renderVerificationReport({
         riskScore: 0,
-        verdict: 'fail',
+        riskLevel: RiskLevel.LOW,
+        verdict: Verdict.FAIL,
         riskFindings: [],
         verificationRequirements,
         suggestedCommands: testImpact.suggestedCommands,
@@ -133,12 +153,13 @@ export class VerificationService {
         pullRequestId: `${request.repoId}#${request.pullNumber}`,
         repoId: request.repoId,
         riskScore: 0,
+        riskLevel: RiskLevel.LOW,
         riskFindings: [],
         testImpact,
         policyFailures: [
           {
             code: 'policy-config-invalid',
-            verdict: 'fail',
+            verdict: Verdict.FAIL,
             message: failureMessage,
           },
         ],
@@ -148,7 +169,7 @@ export class VerificationService {
         ciSummary,
         likelyAgentAuthored: false,
         commentBody,
-        verdict: 'fail',
+        verdict: Verdict.FAIL,
         checkConclusion: 'failure',
       };
     }

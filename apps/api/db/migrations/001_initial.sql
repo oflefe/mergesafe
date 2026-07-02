@@ -19,7 +19,7 @@ CREATE TABLE pull_requests (
   installation_id BIGINT,
   github_pull_request_id BIGINT,
   risk_score INTEGER NOT NULL DEFAULT 0,
-  verdict TEXT NOT NULL DEFAULT 'neutral',
+  verdict TEXT NOT NULL DEFAULT 'NEEDS_REVIEW',
   latest_comment_id BIGINT,
   latest_check_run_id BIGINT,
   latest_verification_run_id BIGINT,

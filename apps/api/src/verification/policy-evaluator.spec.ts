@@ -1,6 +1,7 @@
 import { evaluatePolicy } from './policy-evaluator';
 import { PolicyLoader } from './policy-loader';
 import { mapImpactedTests } from './test-impact';
+import { Verdict } from '../domain/types';
 import {
   safeDocsPr,
   riskyAuthPr,
@@ -64,7 +65,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       riskyAuthPr.changedFiles,
       riskyAuthPr.repositoryFiles,
-      riskyAuthPr.repositoryScripts,
     );
 
     const result = evaluatePolicy(
@@ -78,7 +78,43 @@ describe('evaluatePolicy', () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: 'auth-requires-integration-test',
-          verdict: 'fail',
+          verdict: Verdict.FAIL,
+        }),
+      ]),
+    );
+  });
+
+  it('fails auth changes when only unit tests are present', () => {
+    const policy = loadPolicy();
+    const request = {
+      ...riskyAuthPr,
+      changedFiles: [
+        ...riskyAuthPr.changedFiles,
+        { path: 'tests/auth/session.spec.ts', additions: 20, deletions: 0 },
+      ],
+      repositoryFiles: {
+        ...riskyAuthPr.repositoryFiles,
+        'tests/auth/session.spec.ts':
+          "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
+      },
+    };
+    const testImpact = mapImpactedTests(
+      request.changedFiles,
+      request.repositoryFiles,
+    );
+
+    const result = evaluatePolicy(
+      testImpact,
+      request.reviewComments,
+      request.changedFiles.map((file) => file.path),
+      policy,
+    );
+
+    expect(result.policyFailures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'auth-requires-integration-test',
+          verdict: Verdict.FAIL,
         }),
       ]),
     );
@@ -96,7 +132,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
-      request.repositoryScripts,
     );
 
     const result = evaluatePolicy(
@@ -127,7 +162,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
-      request.repositoryScripts,
     );
 
     const result = evaluatePolicy(
@@ -154,7 +188,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
-      request.repositoryScripts,
     );
 
     const result = evaluatePolicy(
@@ -168,7 +201,7 @@ describe('evaluatePolicy', () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: 'env-requires-docs',
-          verdict: 'fail',
+          verdict: Verdict.FAIL,
         }),
       ]),
     );
@@ -186,7 +219,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
-      request.repositoryScripts,
     );
 
     const result = evaluatePolicy(
@@ -200,7 +232,7 @@ describe('evaluatePolicy', () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: 'payment-requires-human-review',
-          verdict: 'needs_review',
+          verdict: Verdict.NEEDS_REVIEW,
         }),
       ]),
     );
@@ -218,7 +250,6 @@ describe('evaluatePolicy', () => {
     const testImpact = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
-      request.repositoryScripts,
     );
 
     const result = evaluatePolicy(

@@ -4,6 +4,7 @@ import {
   RiskFinding,
   VerificationRequirement,
   VerificationResult,
+  Verdict,
 } from "../domain/types";
 
 function list(items: string[]): string {
@@ -50,9 +51,9 @@ export function buildVerificationComment(input: {
   ciSummary: string;
 }): string {
   const verdictLabel =
-    input.verdict === "pass"
+    input.verdict === Verdict.PASS
       ? "Ready for merge with standard review"
-      : input.verdict === "neutral"
+      : input.verdict === Verdict.NEEDS_REVIEW
         ? "Needs additional verification before merge"
         : "Do not merge until required evidence is added";
 

@@ -94,7 +94,6 @@ function resolveImport(
 export function mapImpactedTests(
   changedFiles: ChangedFile[],
   repositoryFiles: Record<string, string> = {},
-  repositoryScripts: Record<string, string> = {},
 ): TestImpactResult {
   const repoFiles = Object.fromEntries(
     Object.entries(repositoryFiles).map(([path, content]) => [normalizePath(path), content]),
@@ -162,35 +161,9 @@ export function mapImpactedTests(
   const missingTestCoverage =
     nonDocCodeChanges.length > 0 && impactedTests.size === 0 ? nonDocCodeChanges : [];
 
-  const unitTests = [...impactedTests].filter((path) => !/(integration|e2e|rollback)/i.test(path));
-  const integrationTests = [...impactedTests].filter((path) => /(integration|e2e|rollback)/i.test(path));
-  const commands: string[] = [];
-
-  if (unitTests.length > 0) {
-    if (repositoryScripts['test:unit']) {
-      commands.push(`npm run test:unit -- ${unitTests.join(' ')}`);
-    } else if (repositoryScripts.test) {
-      commands.push(`npm test -- ${unitTests.join(' ')}`);
-    }
-  }
-
-  if (integrationTests.length > 0) {
-    if (repositoryScripts['test:integration']) {
-      commands.push(`npm run test:integration -- ${integrationTests.join(' ')}`);
-    } else if (repositoryScripts.pytest) {
-      commands.push(`pytest ${integrationTests.join(' ')}`);
-    } else if (repositoryScripts.test) {
-      commands.push(`npm test -- ${integrationTests.join(' ')}`);
-    }
-  }
-
-  if (commands.length === 0 && repositoryScripts.test && nonDocCodeChanges.length > 0) {
-    commands.push('npm test');
-  }
-
   return {
     impactedTests: [...impactedTests].sort(),
     missingTestCoverage,
-    suggestedCommands: commands,
+    suggestedCommands: [],
   };
 }

@@ -10,11 +10,6 @@ describe('mapImpactedTests', () => {
         'tests/auth/session.spec.ts': `import { session } from '../../src/auth/session';\ndescribe('session', () => {});`,
         'tests/auth/session.integration.spec.ts': `import { session } from '../../src/auth/index';\ndescribe('session integration', () => {});`,
       },
-      {
-        test: 'jest',
-        'test:unit': 'jest unit',
-        'test:integration': 'jest integration',
-      },
     );
 
     expect(result.impactedTests).toEqual(
@@ -23,12 +18,7 @@ describe('mapImpactedTests', () => {
         'tests/auth/session.spec.ts',
       ]),
     );
-    expect(result.suggestedCommands).toEqual(
-      expect.arrayContaining([
-        'npm run test:unit -- tests/auth/session.spec.ts',
-        'npm run test:integration -- tests/auth/session.integration.spec.ts',
-      ]),
-    );
+    expect(result.suggestedCommands).toEqual([]);
   });
 
   it('maps Python imports and reports missing tests', () => {
@@ -38,7 +28,6 @@ describe('mapImpactedTests', () => {
         'src/app/security.py': 'def validate():\n    return True\n',
         'tests/test_security.py': 'from src.app.security import validate\n\ndef test_validate():\n    assert validate() is True\n',
       },
-      { pytest: 'pytest' },
     );
 
     expect(mapped.impactedTests).toContain('tests/test_security.py');
@@ -48,7 +37,6 @@ describe('mapImpactedTests', () => {
       {
         'src/app/payments.py': 'def charge():\n    return True\n',
       },
-      { pytest: 'pytest' },
     );
 
     expect(missing.missingTestCoverage).toEqual(['src/app/payments.py']);

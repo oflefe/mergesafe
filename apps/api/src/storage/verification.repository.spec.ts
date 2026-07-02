@@ -1,6 +1,10 @@
 import { VerificationRepository } from "./verification.repository";
 import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
-import { VerificationResult } from "../domain/types";
+import {
+  RiskLevel,
+  VerificationResult,
+  Verdict,
+} from "../domain/types";
 import { createTestDatabaseClient } from "../../test/helpers/create-test-database";
 import { DatabaseClient, DatabaseTransactionClient } from "./database.pool";
 
@@ -34,6 +38,7 @@ describe("VerificationRepository", () => {
       pullRequestId: pr.id,
       repoId: safeDocsPr.repoId,
       riskScore: 62,
+      riskLevel: RiskLevel.HIGH,
       riskFindings: [
         { code: "missing-tests", weight: 25, reason: "No tests changed" },
       ],
@@ -45,7 +50,7 @@ describe("VerificationRepository", () => {
       policyFailures: [
         {
           code: "manual-review-required",
-          verdict: "fail",
+          verdict: Verdict.FAIL,
           message: "Manual review required for auth changes.",
         },
       ],
@@ -59,7 +64,7 @@ describe("VerificationRepository", () => {
       ciSummary: "CI is failing.",
       likelyAgentAuthored: true,
       commentBody: "Verification summary",
-      verdict: "fail",
+      verdict: Verdict.FAIL,
       checkConclusion: "failure",
     };
 
@@ -115,6 +120,7 @@ describe("VerificationRepository", () => {
       pullRequestId: pr.id,
       repoId: safeDocsPr.repoId,
       riskScore: 10,
+      riskLevel: RiskLevel.LOW,
       riskFindings: [],
       testImpact: {
         impactedTests: [],
@@ -128,7 +134,7 @@ describe("VerificationRepository", () => {
       ciSummary: "ok",
       likelyAgentAuthored: false,
       commentBody: "ok",
-      verdict: "pass",
+      verdict: Verdict.PASS,
       checkConclusion: "success",
     };
 
@@ -138,7 +144,7 @@ describe("VerificationRepository", () => {
 
     expect(loaded?.commentId).toBe(77);
     expect(loaded?.checkRunId).toBe(66);
-    expect(loaded?.latestVerification?.verdict).toBe("pass");
+    expect(loaded?.latestVerification?.verdict).toBe(Verdict.PASS);
   });
 
   it("GIVEN a query failure after run insert WHEN saving verification result THEN transaction rolls back all writes", async () => {
@@ -154,6 +160,7 @@ describe("VerificationRepository", () => {
       pullRequestId: pr.id,
       repoId: safeDocsPr.repoId,
       riskScore: 50,
+      riskLevel: RiskLevel.HIGH,
       riskFindings: [{ code: "missing-tests", weight: 20, reason: "No tests" }],
       testImpact: {
         impactedTests: ["tests/a.spec.ts"],
@@ -169,7 +176,7 @@ describe("VerificationRepository", () => {
       ciSummary: "ci pending",
       likelyAgentAuthored: true,
       commentBody: "body",
-      verdict: "neutral",
+      verdict: Verdict.NEEDS_REVIEW,
       checkConclusion: "neutral",
     };
 

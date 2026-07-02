@@ -425,7 +425,6 @@ describe("GitHubEvidenceFetcher", () => {
     const impact = mapImpactedTests(
       evidence.changedFiles,
       evidence.repositoryFiles,
-      { test: "jest" },
     );
     expect(impact.impactedTests).toContain("tests/auth/session.spec.ts");
     expect(impact.missingTestCoverage).toEqual([]);

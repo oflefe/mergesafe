@@ -5,6 +5,7 @@ import {
 } from "@nestjs/platform-fastify";
 import request from "supertest";
 import { AppModule } from "../../src/app.module";
+import { Verdict } from "../../src/domain/types";
 import { GitHubAppClient } from "../../src/github/github.client";
 import { GitHubEvidenceFetcher } from "../../src/github/github-evidence-fetcher";
 import { DATABASE_CLIENT } from "../../src/storage/database.pool";
@@ -247,7 +248,7 @@ describe("GitHubWebhookController", () => {
     expect(fakeGitHubClient.comments[0].body).toContain(
       "MergeSafe Verification",
     );
-    expect(saved?.latestVerification?.verdict).toBe("fail");
+    expect(saved?.latestVerification?.verdict).toBe(Verdict.FAIL);
 
     await app.close();
   });
@@ -273,7 +274,7 @@ describe("GitHubWebhookController", () => {
 
     const repository = moduleRef.get(VerificationRepository);
     const saved = await repository.getPullRequest("octo/demo#7");
-    expect(saved?.latestVerification?.verdict).toBe("fail");
+    expect(saved?.latestVerification?.verdict).toBe(Verdict.FAIL);
 
     await request(app.getHttpServer())
       .get("/repos")

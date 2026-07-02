@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
 import {
+  Verdict,
   VerificationPolicy,
   VerificationPolicyRule,
 } from '../domain/types';
@@ -30,10 +31,34 @@ const defaultPolicy: VerificationPolicy = {
     infrastructure: 20,
     apiContract: 18,
     missingTests: 22,
+    deletedTests: 18,
+    skippedTests: 20,
+    excessiveMocks: 14,
     largePr: 16,
     generatedText: 14,
   },
 };
+
+function parseVerdict(value: unknown, fieldPath: string): Verdict {
+  if (typeof value !== 'string') {
+    throw new PolicyConfigError(
+      `Invalid policy config: ${fieldPath} must be pass, needs_review, or fail.`,
+    );
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === 'pass') {
+    return Verdict.PASS;
+  }
+  if (normalized === 'needs_review') {
+    return Verdict.NEEDS_REVIEW;
+  }
+  if (normalized === 'fail') {
+    return Verdict.FAIL;
+  }
+  throw new PolicyConfigError(
+    `Invalid policy config: ${fieldPath} must be pass, needs_review, or fail.`,
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -69,9 +94,7 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
   }
 
   const paths = asStringArray(when.paths, `rules[${index}].when.paths`);
-  if (typeof verdict !== 'string' || !['pass', 'needs_review', 'fail'].includes(verdict)) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].verdict must be pass, needs_review, or fail.`);
-  }
+  const parsedVerdict = parseVerdict(verdict, `rules[${index}].verdict`);
   if (typeof message !== 'string' || message.length === 0) {
     throw new PolicyConfigError(`Invalid policy config: rules[${index}].message must be a non-empty string.`);
   }
@@ -104,7 +127,7 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
       ...(tests ? { tests } : {}),
       ...(review ? { review } : {}),
     },
-    verdict: verdict as VerificationPolicyRule['verdict'],
+    verdict: parsedVerdict,
     message,
   };
 }

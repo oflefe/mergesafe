@@ -6,6 +6,19 @@ export type CheckConclusion =
   | "skipped"
   | null;
 
+export enum RiskLevel {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  CRITICAL = "CRITICAL",
+}
+
+export enum Verdict {
+  PASS = "PASS",
+  NEEDS_REVIEW = "NEEDS_REVIEW",
+  FAIL = "FAIL",
+}
+
 export interface CommitInfo {
   sha?: string;
   message: string;
@@ -77,7 +90,7 @@ export interface TestImpactResult {
 
 export interface PolicyFailure {
   code: string;
-  verdict: "pass" | "needs_review" | "fail";
+  verdict: Verdict;
   message: string;
 }
 
@@ -96,7 +109,7 @@ export interface VerificationPolicyRule {
     tests?: string[];
     review?: "human";
   };
-  verdict: "pass" | "needs_review" | "fail";
+  verdict: Verdict;
   message: string;
 }
 
@@ -113,6 +126,7 @@ export interface VerificationResult {
   pullRequestId: string;
   repoId: string;
   riskScore: number;
+  riskLevel: RiskLevel;
   riskFindings: RiskFinding[];
   testImpact: TestImpactResult;
   policyFailures: PolicyFailure[];
@@ -122,7 +136,7 @@ export interface VerificationResult {
   ciSummary: string;
   likelyAgentAuthored: boolean;
   commentBody: string;
-  verdict: "pass" | "neutral" | "fail";
+  verdict: Verdict;
   checkConclusion: "success" | "neutral" | "failure";
 }
 
@@ -147,7 +161,7 @@ export interface PullRequestRecord {
   state: string;
   installationId?: number;
   pullRequestId?: number;
-  verdict: VerificationResult["verdict"];
+  verdict: Verdict;
   riskScore: number;
   checkRunId?: number;
   latestVerificationRunId?: number;

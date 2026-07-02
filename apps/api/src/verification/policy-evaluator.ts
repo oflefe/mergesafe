@@ -1,4 +1,5 @@
 import {
+  Verdict,
   PolicyFailure,
   ReviewComment,
   TestImpactResult,
@@ -136,7 +137,11 @@ export function evaluatePolicy(
       rule.require?.review === 'human' ? hasHumanReview(reviewComments) : false,
     ].some(Boolean);
 
-    if (missingRequirements.length === 0 || rule.verdict === 'pass' || satisfiedBuckets) {
+    if (
+      missingRequirements.length === 0 ||
+      rule.verdict === Verdict.PASS ||
+      satisfiedBuckets
+    ) {
       continue;
     }
 

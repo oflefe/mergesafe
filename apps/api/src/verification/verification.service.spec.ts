@@ -1,5 +1,6 @@
 import { VerificationService } from './verification.service';
 import { PolicyConfigError, PolicyLoader } from './policy-loader';
+import { Verdict } from '../domain/types';
 import { safeDocsPr } from '../../test/fixtures/pull-request.fixtures';
 
 describe('VerificationService', () => {
@@ -16,13 +17,13 @@ describe('VerificationService', () => {
       policyText: 'version: 2\nrules: []\n',
     });
 
-    expect(result.verdict).toBe('fail');
+    expect(result.verdict).toBe(Verdict.FAIL);
     expect(result.checkConclusion).toBe('failure');
     expect(result.policyFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'policy-config-invalid',
-          verdict: 'fail',
+          verdict: Verdict.FAIL,
           message: 'Invalid policy config: version must be 1.',
         }),
       ]),

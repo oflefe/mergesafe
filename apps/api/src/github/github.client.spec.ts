@@ -1,5 +1,10 @@
 import { GitHubAppClient } from "./github.client";
-import { VerificationRequest, VerificationResult } from "../domain/types";
+import {
+  RiskLevel,
+  VerificationRequest,
+  VerificationResult,
+  Verdict,
+} from "../domain/types";
 import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -26,6 +31,7 @@ function buildResult(
     pullRequestId: "octo/demo#1",
     repoId: "octo/demo",
     riskScore: 25,
+    riskLevel: RiskLevel.MEDIUM,
     riskFindings: [],
     testImpact: {
       impactedTests: [],
@@ -39,7 +45,7 @@ function buildResult(
     ciSummary: "CI passed",
     likelyAgentAuthored: false,
     commentBody: "MergeSafe body",
-    verdict: "pass",
+    verdict: Verdict.PASS,
     checkConclusion: "success",
     ...overrides,
   };
