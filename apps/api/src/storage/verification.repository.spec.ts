@@ -45,6 +45,7 @@ describe("VerificationRepository", () => {
       policyFailures: [
         {
           code: "manual-review-required",
+          verdict: "fail",
           message: "Manual review required for auth changes.",
         },
       ],

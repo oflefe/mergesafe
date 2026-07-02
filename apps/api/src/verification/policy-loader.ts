@@ -2,9 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
-import { VerificationPolicy } from '../domain/types';
+import {
+  VerificationPolicy,
+  VerificationPolicyRule,
+} from '../domain/types';
+
+export class PolicyConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PolicyConfigError';
+  }
+}
 
 const defaultPolicy: VerificationPolicy = {
+  version: 1,
+  rules: [],
   heuristics: {
     branchIndicators: ['copilot', 'claude', 'cursor', 'codex', 'ai', 'agent'],
   },
@@ -21,13 +33,81 @@ const defaultPolicy: VerificationPolicy = {
     largePr: 16,
     generatedText: 14,
   },
-  hardRules: {
-    authChangeRequiresIntegrationTest: true,
-    migrationRequiresRollbackTest: true,
-    envChangeRequiresDocsUpdate: true,
-    paymentChangeRequiresManualReviewer: true,
-  },
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asStringArray(value: unknown, fieldPath: string): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+  ) {
+    throw new PolicyConfigError(`Invalid policy config: ${fieldPath} must be a non-empty string array.`);
+  }
+  return value;
+}
+
+function validateRule(rule: unknown, index: number): VerificationPolicyRule {
+  if (!isRecord(rule)) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}] must be an object.`);
+  }
+
+  const id = rule.id;
+  const when = rule.when;
+  const require = rule.require;
+  const verdict = rule.verdict;
+  const message = rule.message;
+
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].id must be a non-empty string.`);
+  }
+  if (!isRecord(when)) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].when must be an object.`);
+  }
+
+  const paths = asStringArray(when.paths, `rules[${index}].when.paths`);
+  if (typeof verdict !== 'string' || !['pass', 'needs_review', 'fail'].includes(verdict)) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].verdict must be pass, needs_review, or fail.`);
+  }
+  if (typeof message !== 'string' || message.length === 0) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].message must be a non-empty string.`);
+  }
+
+  if (require !== undefined && !isRecord(require)) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].require must be an object.`);
+  }
+
+  const changedPaths = require?.changedPaths === undefined
+    ? undefined
+    : asStringArray(require.changedPaths, `rules[${index}].require.changedPaths`);
+  const tests = require?.tests === undefined
+    ? undefined
+    : asStringArray(require.tests, `rules[${index}].require.tests`);
+  const review = require?.review;
+
+  if (review !== undefined && review !== 'human') {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}].require.review must be human.`);
+  }
+
+  if (!changedPaths && !tests && !review) {
+    throw new PolicyConfigError(`Invalid policy config: rules[${index}] must require tests, changed paths, or review.`);
+  }
+
+  return {
+    id,
+    when: { paths },
+    require: {
+      ...(changedPaths ? { changedPaths } : {}),
+      ...(tests ? { tests } : {}),
+      ...(review ? { review } : {}),
+    },
+    verdict: verdict as VerificationPolicyRule['verdict'],
+    message,
+  };
+}
 
 @Injectable()
 export class PolicyLoader {
@@ -39,19 +119,29 @@ export class PolicyLoader {
       return defaultPolicy;
     }
 
-    const parsed = parse(fileText) as Partial<VerificationPolicy> | null;
+    const parsed = parse(fileText);
+    if (!isRecord(parsed)) {
+      throw new PolicyConfigError('Invalid policy config: top-level YAML must be an object.');
+    }
+
+    const version = parsed.version;
+    if (version !== 1) {
+      throw new PolicyConfigError('Invalid policy config: version must be 1.');
+    }
+
+    const rulesValue = parsed.rules;
+    if (!Array.isArray(rulesValue)) {
+      throw new PolicyConfigError('Invalid policy config: rules must be an array.');
+    }
+
     return {
+      version: 1,
+      rules: rulesValue.map((rule, index) => validateRule(rule, index)),
       heuristics: {
-        branchIndicators:
-          parsed?.heuristics?.branchIndicators ?? defaultPolicy.heuristics.branchIndicators,
+        branchIndicators: defaultPolicy.heuristics.branchIndicators,
       },
       riskWeights: {
         ...defaultPolicy.riskWeights,
-        ...(parsed?.riskWeights ?? {}),
-      },
-      hardRules: {
-        ...defaultPolicy.hardRules,
-        ...(parsed?.hardRules ?? {}),
       },
     };
   }

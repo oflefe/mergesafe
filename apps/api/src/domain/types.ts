@@ -77,6 +77,7 @@ export interface TestImpactResult {
 
 export interface PolicyFailure {
   code: string;
+  verdict: "pass" | "needs_review" | "fail";
   message: string;
 }
 
@@ -85,17 +86,27 @@ export interface VerificationRequirement {
   message: string;
 }
 
+export interface VerificationPolicyRule {
+  id: string;
+  when: {
+    paths: string[];
+  };
+  require?: {
+    changedPaths?: string[];
+    tests?: string[];
+    review?: "human";
+  };
+  verdict: "pass" | "needs_review" | "fail";
+  message: string;
+}
+
 export interface VerificationPolicy {
+  version: 1;
+  rules: VerificationPolicyRule[];
   heuristics: {
     branchIndicators: string[];
   };
   riskWeights: Record<string, number>;
-  hardRules: {
-    authChangeRequiresIntegrationTest: boolean;
-    migrationRequiresRollbackTest: boolean;
-    envChangeRequiresDocsUpdate: boolean;
-    paymentChangeRequiresManualReviewer: boolean;
-  };
 }
 
 export interface VerificationResult {

@@ -40,7 +40,21 @@ export const fetchedEvidence: PullRequestEvidence = {
     "test:unit": "jest unit",
     "test:integration": "jest integration",
   },
-  policyText: undefined,
+  policyText: `
+version: 1
+rules:
+  - id: auth-requires-integration-test
+    when:
+      paths:
+        - "src/auth/**"
+        - "src/middleware/**"
+    require:
+      tests:
+        - "integration"
+        - "e2e"
+    verdict: fail
+    message: "Auth or middleware changes require integration test evidence."
+`,
   fetchFindings: [],
 };
 

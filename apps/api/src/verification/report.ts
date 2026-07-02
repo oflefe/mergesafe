@@ -78,7 +78,7 @@ export function buildVerificationComment(input: {
             (requirement) => requirement.message,
           ),
         )
-      : "- No hard policy failures detected.",
+      : "- No policy failures detected.",
     "",
     "### Suggested test commands",
     input.suggestedCommands.length > 0
