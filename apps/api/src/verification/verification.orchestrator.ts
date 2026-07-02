@@ -13,15 +13,21 @@ export class VerificationOrchestrator {
   ) {}
 
   async run(request: VerificationRequest): Promise<VerificationResult> {
-    const pullRequestRecord = this.repository.upsertFromRequest(request);
+    const pullRequestRecord = await this.repository.upsertFromRequest(request);
     const result = this.verificationService.verify(request);
     const commentId = await this.githubClient.upsertVerificationComment(
       request,
       result.commentBody,
       pullRequestRecord.commentId,
     );
-    await this.githubClient.createOrUpdateCheckRun(request, result);
-    this.repository.saveVerificationResult(pullRequestRecord.id, result, request, commentId);
+    const checkRunId = await this.githubClient.createOrUpdateCheckRun(request, result);
+    await this.repository.saveVerificationResult(
+      pullRequestRecord.id,
+      result,
+      request,
+      commentId,
+      checkRunId,
+    );
     return result;
   }
 }

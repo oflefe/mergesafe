@@ -7,7 +7,9 @@ import request from "supertest";
 import { AppModule } from "../../src/app.module";
 import { GitHubAppClient } from "../../src/github/github.client";
 import { GitHubEvidenceFetcher } from "../../src/github/github-evidence-fetcher";
+import { DATABASE_POOL } from "../../src/storage/database.pool";
 import { VerificationRepository } from "../../src/storage/verification.repository";
+import { createTestDatabasePool } from "../helpers/create-test-database";
 import {
   githubWebhookPayload,
   fetchedEvidence,
@@ -32,12 +34,39 @@ class FakeGitHubClient {
       conclusion: result.checkConclusion,
       summary: result.ciSummary,
     });
+    return 501;
   }
 }
 
 class FakeEvidenceFetcher {
-  async fetchPullRequestEvidence() {
-    return fetchedEvidence;
+  calls: Array<{
+    owner: string;
+    repoName: string;
+    pullNumber: number;
+    headSha: string;
+    baseBranch: string;
+    installationId?: number;
+  }> = [];
+
+  evidence = fetchedEvidence;
+
+  async fetchPullRequestEvidence(
+    owner: string,
+    repoName: string,
+    pullNumber: number,
+    headSha: string,
+    baseBranch: string,
+    installationId?: number,
+  ) {
+    this.calls.push({
+      owner,
+      repoName,
+      pullNumber,
+      headSha,
+      baseBranch,
+      installationId,
+    });
+    return this.evidence;
   }
 }
 
@@ -58,7 +87,9 @@ async function buildApp(
 ) {
   const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(GitHubAppClient)
-    .useValue(fakeGitHubClient);
+    .useValue(fakeGitHubClient)
+    .overrideProvider(DATABASE_POOL)
+    .useValue(createTestDatabasePool());
 
   if (fakeEvidenceFetcher) {
     builder
@@ -190,7 +221,7 @@ describe("GitHubWebhookController", () => {
       .expect(202, { accepted: true, pullRequest: "octo/demo#7" });
 
     const repository = moduleRef.get(VerificationRepository);
-    const saved = repository.getPullRequest("octo/demo#7");
+    const saved = await repository.getPullRequest("octo/demo#7");
 
     expect(saved?.lastRequest).toMatchObject({
       repoOwner: "octo",
@@ -241,7 +272,7 @@ describe("GitHubWebhookController", () => {
     );
 
     const repository = moduleRef.get(VerificationRepository);
-    const saved = repository.getPullRequest("octo/demo#7");
+    const saved = await repository.getPullRequest("octo/demo#7");
     expect(saved?.latestVerification?.verdict).toBe("fail");
 
     await request(app.getHttpServer())
@@ -377,7 +408,7 @@ describe("GitHubWebhookController", () => {
       .expect(202, { accepted: true, pullRequest: "octo/demo#7" });
 
     const repository = moduleRef.get(VerificationRepository);
-    const saved = repository.getPullRequest("octo/demo#7");
+    const saved = await repository.getPullRequest("octo/demo#7");
 
     expect(saved?.lastRequest).toMatchObject({
       commits: [{ sha: "abc123def456", message: "feat: add auth hardening" }],
@@ -405,6 +436,70 @@ describe("GitHubWebhookController", () => {
     expect(saved?.latestVerification).toBeDefined();
     expect(fakeGitHubClient.comments).toHaveLength(1);
     expect(fakeGitHubClient.checks).toHaveLength(1);
+
+    await app.close();
+  });
+
+  it("GIVEN a persisted pull request WHEN recheck is called THEN it reloads PR identity and refetches evidence", async () => {
+    const fakeGitHubClient = new FakeGitHubClient();
+    const fakeEvidenceFetcher = new FakeEvidenceFetcher();
+    const { app, moduleRef } = await buildApp(fakeGitHubClient, fakeEvidenceFetcher);
+
+    await request(app.getHttpServer())
+      .post("/webhooks/github")
+      .set("x-github-event", "pull_request")
+      .send(githubWebhookPayload)
+      .expect(202);
+
+    fakeEvidenceFetcher.calls = [];
+    fakeEvidenceFetcher.evidence = {
+      ...fetchedEvidence,
+      changedFiles: [
+        {
+          path: "src/auth/recheck.ts",
+          status: "modified",
+          additions: 1,
+          deletions: 0,
+        },
+      ],
+    };
+
+    await request(app.getHttpServer())
+      .post("/prs/octo%2Fdemo%237/recheck")
+      .send({
+        repositoryFiles: {
+          "stale/file.ts": "should not be used",
+        },
+      })
+      .expect(201)
+      .expect((res) => {
+        expect(res.body.rechecked).toBe(true);
+      });
+
+    expect(fakeEvidenceFetcher.calls).toHaveLength(1);
+    expect(fakeEvidenceFetcher.calls[0]).toEqual({
+      owner: "octo",
+      repoName: "demo",
+      pullNumber: 7,
+      headSha: "abc123def456",
+      baseBranch: "main",
+      installationId: 42,
+    });
+
+    const repository = moduleRef.get(VerificationRepository);
+    const saved = await repository.getPullRequest("octo/demo#7");
+    expect(saved?.lastRequest?.action).toBe("recheck");
+    expect(saved?.lastRequest?.changedFiles).toEqual([
+      {
+        path: "src/auth/recheck.ts",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+      },
+    ]);
+    expect(saved?.lastRequest?.repositoryFiles).not.toEqual({
+      "stale/file.ts": "should not be used",
+    });
 
     await app.close();
   });

@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
+    "db:migrate": "node db/migrate.js",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --config jest.config.cjs --runInBand --testPathPatterns src",
     "test:integration": "jest --config jest.config.cjs --runInBand --testPathPatterns test/integration"
@@ -14,6 +15,7 @@
     "@nestjs/core": "11.1.27",
     "@nestjs/platform-fastify": "11.1.27",
     "bullmq": "5.79.2",
+    "pg": "^8.22.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "yaml": "2.9.0"
@@ -22,8 +24,10 @@
     "@nestjs/testing": "11.1.27",
     "@types/jest": "30.0.0",
     "@types/node": "26.1.0",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "7.2.0",
     "jest": "30.4.2",
+    "pg-mem": "^3.0.14",
     "supertest": "7.2.2",
     "ts-jest": "29.4.11",
     "typescript": "6.0.3"

@@ -6,12 +6,12 @@ export class RepositoriesController {
   constructor(private readonly repository: VerificationRepository) {}
 
   @Get('repos')
-  listRepositories() {
-    return this.repository.listRepositories();
+  async listRepositories() {
+    return await this.repository.listRepositories();
   }
 
   @Get('repos/:id/prs')
-  listPullRequests(@Param('id') id: string) {
-    return this.repository.listPullRequests(id);
+  async listPullRequests(@Param('id') id: string) {
+    return await this.repository.listPullRequests(id);
   }
 }

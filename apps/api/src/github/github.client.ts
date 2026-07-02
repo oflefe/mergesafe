@@ -19,7 +19,9 @@ export class GitHubAppClient {
   ): Promise<number> {
     const token = request.installationId ? await this.getInstallationToken(request.installationId) : null;
     if (!token) {
-      this.logger.log(`Verification comment for ${request.repoOwner}/${request.repoName}#${request.pullNumber}\n${body}`);
+      this.logger.log(
+        `Verification comment updated for ${request.repoOwner}/${request.repoName}#${request.pullNumber}`,
+      );
       return existingCommentId ?? this.commentSequence++;
     }
 
@@ -49,7 +51,7 @@ export class GitHubAppClient {
   async createOrUpdateCheckRun(
     request: VerificationRequest,
     result: VerificationResult,
-  ): Promise<void> {
+  ): Promise<number | undefined> {
     const token = request.installationId ? await this.getInstallationToken(request.installationId) : null;
     const payload = {
       name: 'Agentic PR Verification',
@@ -64,11 +66,11 @@ export class GitHubAppClient {
     };
 
     if (!token) {
-      this.logger.log(`Check run payload: ${JSON.stringify(payload)}`);
-      return;
+      this.logger.log(`Check run recorded for ${request.repoOwner}/${request.repoName}#${request.pullNumber}`);
+      return undefined;
     }
 
-    await this.request(
+    const response = await this.request(
       token,
       `https://api.github.com/repos/${request.repoOwner}/${request.repoName}/check-runs`,
       {
@@ -79,6 +81,7 @@ export class GitHubAppClient {
         },
       },
     );
+    return response.id as number | undefined;
   }
 
   private async getInstallationToken(installationId: number): Promise<string | null> {

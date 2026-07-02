@@ -13,6 +13,7 @@ MergeSafe — evidence-based verification for agent-generated pull requests.
 
 ```bash
 npm install
+npm run db:migrate -w @mergesafe/api
 npm test
 npm run build
 npm run start:api
@@ -29,3 +30,13 @@ Set the values in `.env.example` to enable live GitHub App comment/check creatio
 - `GITHUB_WEBHOOK_SECRET`
 - `REDIS_URL`
 - `DATABASE_URL`
+
+## Database migrations
+
+Apply SQL migrations for the API database:
+
+```bash
+npm run db:migrate -w @mergesafe/api
+```
+
+`DATABASE_URL` defaults to `postgres://postgres:postgres@localhost:5432/mergesafe` when unset.

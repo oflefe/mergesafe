@@ -124,13 +124,22 @@ export interface RepositoryRecord {
 export interface PullRequestRecord {
   id: string;
   repoId: string;
+  repoOwner: string;
+  repoName: string;
   number: number;
   title: string;
+  body: string;
   author: string;
   branchName: string;
+  baseBranch: string;
+  headSha: string;
   state: string;
+  installationId?: number;
+  pullRequestId?: number;
   verdict: VerificationResult["verdict"];
   riskScore: number;
+  checkRunId?: number;
+  latestVerificationRunId?: number;
   latestVerification?: VerificationResult;
   lastRequest?: VerificationRequest;
   commentId?: number;
