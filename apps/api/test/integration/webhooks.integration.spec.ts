@@ -245,7 +245,7 @@ describe("GitHubWebhookController", () => {
     expect(fakeGitHubClient.comments).toHaveLength(1);
     expect(fakeGitHubClient.checks).toHaveLength(1);
     expect(fakeGitHubClient.comments[0].body).toContain(
-      "Agentic PR Verification",
+      "MergeSafe Verification",
     );
     expect(saved?.latestVerification?.verdict).toBe("fail");
 
@@ -268,7 +268,7 @@ describe("GitHubWebhookController", () => {
     expect(fakeGitHubClient.comments).toHaveLength(1);
     expect(fakeGitHubClient.checks).toHaveLength(1);
     expect(fakeGitHubClient.comments[0].body).toContain(
-      "Agentic PR Verification",
+      "MergeSafe Verification",
     );
 
     const repository = moduleRef.get(VerificationRepository);

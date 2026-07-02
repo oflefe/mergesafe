@@ -20,9 +20,14 @@ export class VerificationOrchestrator {
       result.commentBody,
       pullRequestRecord.commentId,
     );
+    const existingCheckRunId =
+      pullRequestRecord.lastRequest?.headSha === request.headSha
+        ? pullRequestRecord.checkRunId
+        : undefined;
     const checkRunId = await this.githubClient.createOrUpdateCheckRun(
       request,
       result,
+      existingCheckRunId,
     );
     await this.repository.saveVerificationResult(
       pullRequestRecord.id,
