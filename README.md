@@ -1,6 +1,6 @@
 # mergesafe
 
-MergeProof — evidence-based verification for agent-generated pull requests.
+MergeSafe — evidence-based verification for agent-generated pull requests.
 
 ## What this repository contains
 
