@@ -7,7 +7,8 @@ import {
   VERIFICATION_QUEUE,
   verificationQueueProvider,
 } from "./queue/verification-queue";
-import { createDatabasePool, DATABASE_POOL } from "./storage/database.pool";
+import { createDatabaseClient, DATABASE_CLIENT } from "./storage/database.pool";
+import { DatabaseShutdownService } from "./storage/database-shutdown.service";
 import { VerificationRepository } from "./storage/verification.repository";
 import { VerificationOrchestrator } from "./verification/verification.orchestrator";
 import { PolicyLoader } from "./verification/policy-loader";
@@ -24,9 +25,10 @@ import { GitHubWebhookController } from "./webhooks/github-webhook.controller";
     GitHubAppClient,
     GitHubEvidenceFetcher,
     {
-      provide: DATABASE_POOL,
-      useFactory: createDatabasePool,
+      provide: DATABASE_CLIENT,
+      useFactory: createDatabaseClient,
     },
+    DatabaseShutdownService,
     VerificationRepository,
     PolicyLoader,
     VerificationService,

@@ -7,9 +7,9 @@ import request from "supertest";
 import { AppModule } from "../../src/app.module";
 import { GitHubAppClient } from "../../src/github/github.client";
 import { GitHubEvidenceFetcher } from "../../src/github/github-evidence-fetcher";
-import { DATABASE_POOL } from "../../src/storage/database.pool";
+import { DATABASE_CLIENT } from "../../src/storage/database.pool";
 import { VerificationRepository } from "../../src/storage/verification.repository";
-import { createTestDatabasePool } from "../helpers/create-test-database";
+import { createTestDatabaseClient } from "../helpers/create-test-database";
 import {
   githubWebhookPayload,
   fetchedEvidence,
@@ -88,8 +88,8 @@ async function buildApp(
   const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(GitHubAppClient)
     .useValue(fakeGitHubClient)
-    .overrideProvider(DATABASE_POOL)
-    .useValue(createTestDatabasePool());
+    .overrideProvider(DATABASE_CLIENT)
+    .useValue(createTestDatabaseClient());
 
   if (fakeEvidenceFetcher) {
     builder

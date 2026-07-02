@@ -5,17 +5,23 @@ import {
   VerificationRequest,
   VerificationResult,
 } from "../domain/types";
-import { DATABASE_POOL, DatabasePool } from "./database.pool";
+import {
+  DATABASE_CLIENT,
+  DatabaseClient,
+  DatabaseQueryClient,
+} from "./database.pool";
 
 @Injectable()
 export class VerificationRepository {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: DatabasePool) {}
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly database: DatabaseClient,
+  ) {}
 
   async upsertFromRequest(
     request: VerificationRequest,
   ): Promise<PullRequestRecord> {
     const repoId = request.repoId || `${request.repoOwner}/${request.repoName}`;
-    await this.pool.query(
+    await this.database.query(
       `INSERT INTO repositories (id, owner, name)
        VALUES ($1, $2, $3)
        ON CONFLICT (id) DO UPDATE SET owner = EXCLUDED.owner, name = EXCLUDED.name`,
@@ -23,7 +29,7 @@ export class VerificationRepository {
     );
 
     const pullRequestId = `${repoId}#${request.pullNumber}`;
-    await this.pool.query(
+    await this.database.query(
       `INSERT INTO pull_requests (
         id,
         repository_id,
@@ -83,54 +89,29 @@ export class VerificationRepository {
       throw new Error(`Unknown pull request ${pullRequestId}`);
     }
 
-    const runInsert = await this.pool.query<{ id: number }>(
-      `INSERT INTO verification_runs (pull_request_id, request_json, result_json)
-       VALUES ($1, $2::jsonb, $3::jsonb)
-       RETURNING id`,
-      [pullRequestId, JSON.stringify(request), JSON.stringify(result)],
-    );
-    const runId = Number(runInsert.rows[0].id);
-
-    await this.persistChangedFiles(runId, request);
-    await this.persistRiskFindings(runId, result);
-    await this.persistVerificationRequirements(runId, result);
-    await this.persistCheckRunSnapshots(runId, request);
-    await this.persistExternalReviewFindings(runId, result);
-    await this.upsertPolicy(request.repoId, request.policyText);
-
-    await this.pool.query(
-      `UPDATE pull_requests
-       SET
-        title = $2,
-        body = $3,
-        author = $4,
-        branch_name = $5,
-        base_branch = $6,
-        head_sha = $7,
-        state = CASE WHEN $8 = 'reopened' THEN 'open' ELSE state END,
-        risk_score = $9,
-        verdict = $10,
-        latest_comment_id = COALESCE($11, latest_comment_id),
-        latest_check_run_id = COALESCE($12, latest_check_run_id),
-        latest_verification_run_id = $13,
-        updated_at = NOW()
-      WHERE id = $1`,
-      [
+    await this.database.transaction(async (client) => {
+      const runId = await this.insertVerificationRun(
+        client,
         pullRequestId,
-        request.title,
-        request.body,
-        request.author,
-        request.branchName,
-        request.baseBranch,
-        request.headSha,
-        request.action,
-        result.riskScore,
-        result.verdict,
-        commentId ?? null,
-        checkRunId ?? null,
+        request,
+        result,
+      );
+      await this.persistChangedFiles(client, runId, request);
+      await this.persistRiskFindings(client, runId, result);
+      await this.persistVerificationRequirements(client, runId, result);
+      await this.persistCheckRunSnapshots(client, runId, request);
+      await this.persistExternalReviewFindings(client, runId, result);
+      await this.upsertPolicy(client, request.repoId, request.policyText);
+      await this.updatePullRequestLatestState(
+        client,
+        pullRequestId,
+        request,
+        result,
         runId,
-      ],
-    );
+        commentId,
+        checkRunId,
+      );
+    });
 
     const updated = await this.getPullRequest(pullRequestId);
     if (!updated) {
@@ -140,14 +121,14 @@ export class VerificationRepository {
   }
 
   async listRepositories(): Promise<RepositoryRecord[]> {
-    const result = await this.pool.query<RepositoryRecord>(
+    const result = await this.database.query<RepositoryRecord>(
       "SELECT id, owner, name FROM repositories ORDER BY id",
     );
     return result.rows;
   }
 
   async listPullRequests(repoId: string): Promise<PullRequestRecord[]> {
-    const result = await this.pool.query<PullRequestRow>(
+    const result = await this.database.query<PullRequestRow>(
       `SELECT
         pr.id,
         pr.repository_id,
@@ -183,7 +164,7 @@ export class VerificationRepository {
   async getPullRequest(
     pullRequestId: string,
   ): Promise<PullRequestRecord | undefined> {
-    const result = await this.pool.query<PullRequestRow>(
+    const result = await this.database.query<PullRequestRow>(
       `SELECT
         pr.id,
         pr.repository_id,
@@ -216,12 +197,72 @@ export class VerificationRepository {
     return row ? this.mapPullRequestRow(row) : undefined;
   }
 
+  private async insertVerificationRun(
+    client: DatabaseQueryClient,
+    pullRequestId: string,
+    request: VerificationRequest,
+    result: VerificationResult,
+  ): Promise<number> {
+    const runInsert = await client.query<{ id: number }>(
+      `INSERT INTO verification_runs (pull_request_id, request_json, result_json)
+       VALUES ($1, $2::jsonb, $3::jsonb)
+       RETURNING id`,
+      [pullRequestId, JSON.stringify(request), JSON.stringify(result)],
+    );
+    return Number(runInsert.rows[0].id);
+  }
+
+  private async updatePullRequestLatestState(
+    client: DatabaseQueryClient,
+    pullRequestId: string,
+    request: VerificationRequest,
+    result: VerificationResult,
+    runId: number,
+    commentId?: number,
+    checkRunId?: number,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE pull_requests
+       SET
+        title = $2,
+        body = $3,
+        author = $4,
+        branch_name = $5,
+        base_branch = $6,
+        head_sha = $7,
+        state = CASE WHEN $8 = 'reopened' THEN 'open' ELSE state END,
+        risk_score = $9,
+        verdict = $10,
+        latest_comment_id = COALESCE($11, latest_comment_id),
+        latest_check_run_id = COALESCE($12, latest_check_run_id),
+        latest_verification_run_id = $13,
+        updated_at = NOW()
+      WHERE id = $1`,
+      [
+        pullRequestId,
+        request.title,
+        request.body,
+        request.author,
+        request.branchName,
+        request.baseBranch,
+        request.headSha,
+        request.action,
+        result.riskScore,
+        result.verdict,
+        commentId ?? null,
+        checkRunId ?? null,
+        runId,
+      ],
+    );
+  }
+
   private async persistChangedFiles(
+    client: DatabaseQueryClient,
     runId: number,
     request: VerificationRequest,
   ): Promise<void> {
     for (const file of request.changedFiles) {
-      await this.pool.query(
+      await client.query(
         `INSERT INTO changed_files (verification_run_id, path, status, additions, deletions, patch)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
@@ -237,11 +278,12 @@ export class VerificationRepository {
   }
 
   private async persistRiskFindings(
+    client: DatabaseQueryClient,
     runId: number,
     result: VerificationResult,
   ): Promise<void> {
     for (const finding of result.riskFindings) {
-      await this.pool.query(
+      await client.query(
         `INSERT INTO risk_findings (verification_run_id, code, weight, reason)
          VALUES ($1, $2, $3, $4)`,
         [runId, finding.code, finding.weight, finding.reason],
@@ -250,11 +292,12 @@ export class VerificationRepository {
   }
 
   private async persistVerificationRequirements(
+    client: DatabaseQueryClient,
     runId: number,
     result: VerificationResult,
   ): Promise<void> {
     for (const requirement of result.verificationRequirements) {
-      await this.pool.query(
+      await client.query(
         `INSERT INTO verification_requirements (verification_run_id, code, message)
          VALUES ($1, $2, $3)`,
         [runId, requirement.code, requirement.message],
@@ -263,11 +306,12 @@ export class VerificationRepository {
   }
 
   private async persistCheckRunSnapshots(
+    client: DatabaseQueryClient,
     runId: number,
     request: VerificationRequest,
   ): Promise<void> {
     for (const checkRun of request.checkRuns) {
-      await this.pool.query(
+      await client.query(
         `INSERT INTO check_run_snapshots (verification_run_id, name, status, conclusion)
          VALUES ($1, $2, $3, $4)`,
         [runId, checkRun.name, checkRun.status, checkRun.conclusion],
@@ -276,11 +320,12 @@ export class VerificationRepository {
   }
 
   private async persistExternalReviewFindings(
+    client: DatabaseQueryClient,
     runId: number,
     result: VerificationResult,
   ): Promise<void> {
     for (const finding of result.externalReviewFindings) {
-      await this.pool.query(
+      await client.query(
         `INSERT INTO external_review_findings (verification_run_id, source, author, body)
          VALUES ($1, $2, $3, $4)`,
         [runId, finding.source, finding.author, finding.body],
@@ -289,6 +334,7 @@ export class VerificationRepository {
   }
 
   private async upsertPolicy(
+    client: DatabaseQueryClient,
     repoId: string,
     policyText: string | undefined,
   ): Promise<void> {
@@ -296,7 +342,7 @@ export class VerificationRepository {
       return;
     }
 
-    await this.pool.query(
+    await client.query(
       `INSERT INTO repo_policies (repository_id, policy_yaml, updated_at)
        VALUES ($1, $2, NOW())
        ON CONFLICT (repository_id) DO UPDATE SET
