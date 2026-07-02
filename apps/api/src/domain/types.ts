@@ -35,8 +35,10 @@ export interface VerificationRequest {
   title: string;
   body: string;
   branchName: string;
+  baseBranch: string;
+  headSha: string;
   author: string;
-  action: 'opened' | 'synchronize' | 'recheck';
+  action: 'opened' | 'synchronize' | 'reopened' | 'recheck';
   installationId?: number;
   pullRequestId?: number;
   commits: CommitInfo[];

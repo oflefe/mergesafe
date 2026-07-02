@@ -1,104 +1,90 @@
-import { Body, Controller, Headers, HttpCode, Post, UnauthorizedException, Inject } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { Body, Controller, Headers, HttpCode, Inject, Post, RawBody } from '@nestjs/common';
 import { VERIFICATION_QUEUE, VerificationQueue } from '../queue/verification-queue';
 import { VerificationRequest } from '../domain/types';
+import { verifyWebhookSignature } from './webhook-signature';
+import { GitHubEvidenceFetcher } from '../github/github-evidence-fetcher';
 
-interface GitHubWebhookPayload {
-  action: 'opened' | 'synchronize' | string;
+const ACCEPTED_PULL_REQUEST_ACTIONS = ['opened', 'synchronize', 'reopened'] as const;
+type AcceptedPullRequestAction = (typeof ACCEPTED_PULL_REQUEST_ACTIONS)[number];
+
+interface PullRequestWebhookPayload {
+  action: string;
   installation?: { id: number };
-  repository: { owner: { login: string }; name: string; full_name: string };
   pull_request: {
     number: number;
     id: number;
     title: string;
-    body?: string | null;
-    head: { ref: string };
+    body: string | null;
     user: { login: string };
-    commits?: number;
+    head: { ref: string; sha: string };
+    base: { ref: string };
   };
-  commits?: Array<{ sha?: string; message: string }>;
-  changed_files?: Array<{
-    filename: string;
-    status?: string;
-    additions?: number;
-    deletions?: number;
-    patch?: string;
-    content?: string;
-  }>;
-  check_runs?: Array<{ name: string; status: 'queued' | 'in_progress' | 'completed'; conclusion: any }>;
-  review_comments?: Array<{ id: number; user: { login: string }; body: string; resolved?: boolean }>;
-  repository_files?: Record<string, string>;
-  repository_scripts?: Record<string, string>;
-  policy_text?: string;
+  repository: {
+    owner: { login: string };
+    name: string;
+    full_name: string;
+  };
+}
+
+function isAcceptedPullRequestAction(action: string): action is AcceptedPullRequestAction {
+  return (ACCEPTED_PULL_REQUEST_ACTIONS as readonly string[]).includes(action);
 }
 
 @Controller('webhooks')
 export class GitHubWebhookController {
-  constructor(@Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueue) {}
+  constructor(
+    @Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueue,
+    private readonly evidenceFetcher: GitHubEvidenceFetcher,
+  ) {}
 
   @Post('github')
   @HttpCode(202)
   async handle(
-    @Body() payload: GitHubWebhookPayload,
+    @RawBody() rawBody: Buffer,
+    @Body() payload: PullRequestWebhookPayload,
     @Headers('x-github-event') event: string,
     @Headers('x-hub-signature-256') signature?: string,
   ) {
-    this.verifySignature(signature, payload);
-    if (event !== 'pull_request' || !['opened', 'synchronize'].includes(payload.action)) {
+    verifyWebhookSignature(rawBody, signature, process.env.GITHUB_WEBHOOK_SECRET);
+
+    if (event !== 'pull_request' || !isAcceptedPullRequestAction(payload.action)) {
       return { accepted: false };
     }
 
+    const { pull_request: pr, repository, installation } = payload;
+
+    const evidence = await this.evidenceFetcher.fetchPullRequestEvidence(
+      repository.owner.login,
+      repository.name,
+      pr.number,
+      pr.head.sha,
+      installation?.id,
+    );
+
     const request: VerificationRequest = {
-      repoOwner: payload.repository.owner.login,
-      repoName: payload.repository.name,
-      repoId: payload.repository.full_name,
-      pullNumber: payload.pull_request.number,
-      pullRequestId: payload.pull_request.id,
-      title: payload.pull_request.title,
-      body: payload.pull_request.body ?? '',
-      branchName: payload.pull_request.head.ref,
-      author: payload.pull_request.user.login,
-      action: payload.action as 'opened' | 'synchronize',
-      installationId: payload.installation?.id,
-      commits: payload.commits ?? [],
-      changedFiles:
-        payload.changed_files?.map((file) => ({
-          path: file.filename,
-          status: file.status,
-          additions: file.additions,
-          deletions: file.deletions,
-          patch: file.patch,
-          content: file.content,
-        })) ?? [],
-      checkRuns: payload.check_runs ?? [],
-      reviewComments:
-        payload.review_comments?.map((comment) => ({
-          id: comment.id,
-          author: comment.user.login,
-          body: comment.body,
-          resolved: comment.resolved,
-        })) ?? [],
-      repositoryFiles: payload.repository_files,
-      repositoryScripts: payload.repository_scripts,
-      policyText: payload.policy_text,
+      repoOwner: repository.owner.login,
+      repoName: repository.name,
+      repoId: repository.full_name,
+      pullNumber: pr.number,
+      pullRequestId: pr.id,
+      title: pr.title,
+      body: pr.body ?? '',
+      branchName: pr.head.ref,
+      baseBranch: pr.base.ref,
+      headSha: pr.head.sha,
+      author: pr.user.login,
+      action: payload.action as AcceptedPullRequestAction,
+      installationId: installation?.id,
+      commits: evidence.commits,
+      changedFiles: evidence.changedFiles,
+      checkRuns: evidence.checkRuns,
+      reviewComments: evidence.reviewComments,
+      repositoryFiles: evidence.repositoryFiles,
+      repositoryScripts: evidence.repositoryScripts,
+      policyText: evidence.policyText,
     };
 
     await this.queue.enqueue(request);
     return { accepted: true, pullRequest: `${request.repoId}#${request.pullNumber}` };
-  }
-
-  private verifySignature(signature: string | undefined, payload: GitHubWebhookPayload) {
-    const secret = process.env.GITHUB_WEBHOOK_SECRET;
-    if (!secret || !signature) {
-      return;
-    }
-    const digest = `sha256=${createHmac('sha256', secret)
-      .update(JSON.stringify(payload))
-      .digest('hex')}`;
-    const left = Buffer.from(signature);
-    const right = Buffer.from(digest);
-    if (left.length !== right.length || !timingSafeEqual(left, right)) {
-      throw new UnauthorizedException('Invalid webhook signature');
-    }
   }
 }

@@ -53,7 +53,7 @@ export class GitHubAppClient {
     const token = request.installationId ? await this.getInstallationToken(request.installationId) : null;
     const payload = {
       name: 'Agentic PR Verification',
-      head_sha: request.commits[0]?.sha,
+      head_sha: request.headSha,
       status: 'completed',
       conclusion: result.checkConclusion,
       output: {

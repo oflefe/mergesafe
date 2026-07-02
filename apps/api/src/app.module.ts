@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GitHubAppClient } from './github/github.client';
+import { GitHubEvidenceFetcher } from './github/github-evidence-fetcher';
 import { PullRequestsController } from './http/pull-requests.controller';
 import { RepositoriesController } from './http/repositories.controller';
 import {
@@ -16,6 +17,7 @@ import { GitHubWebhookController } from './webhooks/github-webhook.controller';
   controllers: [GitHubWebhookController, RepositoriesController, PullRequestsController],
   providers: [
     GitHubAppClient,
+    GitHubEvidenceFetcher,
     VerificationRepository,
     PolicyLoader,
     VerificationService,
