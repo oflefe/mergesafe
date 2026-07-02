@@ -1,4 +1,10 @@
-export type CheckConclusion = 'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | null;
+export type CheckConclusion =
+  | "success"
+  | "failure"
+  | "neutral"
+  | "cancelled"
+  | "skipped"
+  | null;
 
 export interface CommitInfo {
   sha?: string;
@@ -16,7 +22,7 @@ export interface ChangedFile {
 
 export interface CheckRunSnapshot {
   name: string;
-  status: 'queued' | 'in_progress' | 'completed';
+  status: "queued" | "in_progress" | "completed";
   conclusion: CheckConclusion;
 }
 
@@ -38,7 +44,7 @@ export interface VerificationRequest {
   baseBranch: string;
   headSha: string;
   author: string;
-  action: 'opened' | 'synchronize' | 'reopened' | 'recheck';
+  action: "opened" | "synchronize" | "reopened" | "recheck";
   installationId?: number;
   pullRequestId?: number;
   commits: CommitInfo[];
@@ -48,6 +54,7 @@ export interface VerificationRequest {
   repositoryFiles?: Record<string, string>;
   repositoryScripts?: Record<string, string>;
   policyText?: string;
+  evidenceFindings?: string[];
 }
 
 export interface RiskFinding {
@@ -104,8 +111,8 @@ export interface VerificationResult {
   ciSummary: string;
   likelyAgentAuthored: boolean;
   commentBody: string;
-  verdict: 'pass' | 'neutral' | 'fail';
-  checkConclusion: 'success' | 'neutral' | 'failure';
+  verdict: "pass" | "neutral" | "fail";
+  checkConclusion: "success" | "neutral" | "failure";
 }
 
 export interface RepositoryRecord {
@@ -122,7 +129,7 @@ export interface PullRequestRecord {
   author: string;
   branchName: string;
   state: string;
-  verdict: VerificationResult['verdict'];
+  verdict: VerificationResult["verdict"];
   riskScore: number;
   latestVerification?: VerificationResult;
   lastRequest?: VerificationRequest;

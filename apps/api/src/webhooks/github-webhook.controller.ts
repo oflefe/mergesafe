@@ -1,10 +1,25 @@
-import { Body, Controller, Headers, HttpCode, Inject, Post, RawBody } from '@nestjs/common';
-import { VERIFICATION_QUEUE, VerificationQueue } from '../queue/verification-queue';
-import { VerificationRequest } from '../domain/types';
-import { verifyWebhookSignature } from './webhook-signature';
-import { GitHubEvidenceFetcher } from '../github/github-evidence-fetcher';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  Inject,
+  Post,
+  RawBody,
+} from "@nestjs/common";
+import {
+  VERIFICATION_QUEUE,
+  VerificationQueue,
+} from "../queue/verification-queue";
+import { VerificationRequest } from "../domain/types";
+import { verifyWebhookSignature } from "./webhook-signature";
+import { GitHubEvidenceFetcher } from "../github/github-evidence-fetcher";
 
-const ACCEPTED_PULL_REQUEST_ACTIONS = ['opened', 'synchronize', 'reopened'] as const;
+const ACCEPTED_PULL_REQUEST_ACTIONS = [
+  "opened",
+  "synchronize",
+  "reopened",
+] as const;
 type AcceptedPullRequestAction = (typeof ACCEPTED_PULL_REQUEST_ACTIONS)[number];
 
 interface PullRequestWebhookPayload {
@@ -26,28 +41,37 @@ interface PullRequestWebhookPayload {
   };
 }
 
-function isAcceptedPullRequestAction(action: string): action is AcceptedPullRequestAction {
+function isAcceptedPullRequestAction(
+  action: string,
+): action is AcceptedPullRequestAction {
   return (ACCEPTED_PULL_REQUEST_ACTIONS as readonly string[]).includes(action);
 }
 
-@Controller('webhooks')
+@Controller("webhooks")
 export class GitHubWebhookController {
   constructor(
     @Inject(VERIFICATION_QUEUE) private readonly queue: VerificationQueue,
     private readonly evidenceFetcher: GitHubEvidenceFetcher,
   ) {}
 
-  @Post('github')
+  @Post("github")
   @HttpCode(202)
   async handle(
     @RawBody() rawBody: Buffer,
     @Body() payload: PullRequestWebhookPayload,
-    @Headers('x-github-event') event: string,
-    @Headers('x-hub-signature-256') signature?: string,
+    @Headers("x-github-event") event: string,
+    @Headers("x-hub-signature-256") signature?: string,
   ) {
-    verifyWebhookSignature(rawBody, signature, process.env.GITHUB_WEBHOOK_SECRET);
+    verifyWebhookSignature(
+      rawBody,
+      signature,
+      process.env.GITHUB_WEBHOOK_SECRET,
+    );
 
-    if (event !== 'pull_request' || !isAcceptedPullRequestAction(payload.action)) {
+    if (
+      event !== "pull_request" ||
+      !isAcceptedPullRequestAction(payload.action)
+    ) {
       return { accepted: false };
     }
 
@@ -58,6 +82,7 @@ export class GitHubWebhookController {
       repository.name,
       pr.number,
       pr.head.sha,
+      pr.base.ref,
       installation?.id,
     );
 
@@ -68,7 +93,7 @@ export class GitHubWebhookController {
       pullNumber: pr.number,
       pullRequestId: pr.id,
       title: pr.title,
-      body: pr.body ?? '',
+      body: pr.body ?? "",
       branchName: pr.head.ref,
       baseBranch: pr.base.ref,
       headSha: pr.head.sha,
@@ -82,9 +107,13 @@ export class GitHubWebhookController {
       repositoryFiles: evidence.repositoryFiles,
       repositoryScripts: evidence.repositoryScripts,
       policyText: evidence.policyText,
+      evidenceFindings: evidence.fetchFindings,
     };
 
     await this.queue.enqueue(request);
-    return { accepted: true, pullRequest: `${request.repoId}#${request.pullNumber}` };
+    return {
+      accepted: true,
+      pullRequest: `${request.repoId}#${request.pullNumber}`,
+    };
   }
 }
