@@ -4,7 +4,10 @@ export const dynamic = "force-dynamic";
 
 async function loadVerification(id: string) {
   try {
-    const verification = await fetchApiJson<any>(`/prs/${id}/verification`);
+    const encodedId = encodeURIComponent(id);
+    const verification = await fetchApiJson<any>(
+      `/prs/${encodedId}/verification`,
+    );
 
     if (!verification) {
       return null;

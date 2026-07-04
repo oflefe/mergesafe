@@ -239,45 +239,45 @@ Security note:
 ```yaml
 version: 1
 rules:
-	- id: auth-change-needs-verification
-		when:
-			paths:
-				- apps/api/src/auth/**
-				- apps/api/src/security/**
-		require:
-			mode: all
-			tests:
-				- integration
-				- e2e
-			review: human
-		verdict: fail
-		message: Auth or security changes require integration or e2e evidence plus human review.
+  - id: auth-change-needs-verification
+    when:
+      paths:
+        - apps/api/src/auth/**
+        - apps/api/src/security/**
+    require:
+      mode: all
+      tests:
+        - integration
+        - e2e
+      review: human
+    verdict: fail
+    message: Auth or security changes require integration or e2e evidence plus human review.
 
-	- id: migration-change-needs-rollback-evidence
-		when:
-			paths:
-				- apps/api/db/migrations/**
-		require:
-			mode: any
-			changedPaths:
-				- README.md
-				- docs/rollback.md
-			tests:
-				- rollback
-		verdict: fail
-		message: Migrations require rollback docs or rollback test evidence.
+  - id: migration-change-needs-rollback-evidence
+    when:
+      paths:
+        - apps/api/db/migrations/**
+    require:
+      mode: any
+      changedPaths:
+        - README.md
+        - docs/rollback.md
+      tests:
+        - rollback
+    verdict: fail
+    message: Migrations require rollback docs or rollback test evidence.
 
-	- id: env-change-needs-docs
-		when:
-			paths:
-				- .env.example
-				- apps/api/src/bootstrap.ts
-		require:
-			changedPaths:
-				- README.md
-				- .env.example
-		verdict: fail
-		message: Env and config changes require docs.
+  - id: env-change-needs-docs
+    when:
+      paths:
+        - .env.example
+        - apps/api/src/bootstrap.ts
+    require:
+      changedPaths:
+        - README.md
+        - .env.example
+    verdict: fail
+    message: Env and config changes require docs.
 ```
 
 ## Short demo script

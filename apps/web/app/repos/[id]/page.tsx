@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 async function loadPullRequests(id: string) {
   try {
+    const encodedId = encodeURIComponent(id);
     const pullRequests = await fetchApiJson<
       Array<{
         id: string;
@@ -13,7 +14,7 @@ async function loadPullRequests(id: string) {
         verdict: string;
         riskScore: number;
       }>
-    >(`/repos/${id}/prs`);
+    >(`/repos/${encodedId}/prs`);
 
     if (!pullRequests) {
       return [];
