@@ -99,12 +99,15 @@ export interface VerificationRequirement {
   message: string;
 }
 
+export type RequirementMode = "all" | "any";
+
 export interface VerificationPolicyRule {
   id: string;
   when: {
     paths: string[];
   };
   require?: {
+    mode?: RequirementMode;
     changedPaths?: string[];
     tests?: string[];
     review?: "human";

@@ -1,27 +1,35 @@
-import Link from 'next/link';
+import Link from "next/link";
+import { fetchApiJson } from "../../../lib/api-client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 async function loadPullRequests(id: string) {
-  const apiBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:3001';
   try {
-    const response = await fetch(`${apiBaseUrl}/repos/${id}/prs`, { cache: 'no-store' });
-    if (!response.ok) {
+    const pullRequests = await fetchApiJson<
+      Array<{
+        id: string;
+        number: number;
+        title: string;
+        verdict: string;
+        riskScore: number;
+      }>
+    >(`/repos/${id}/prs`);
+
+    if (!pullRequests) {
       return [];
     }
-    return (await response.json()) as Array<{
-      id: string;
-      number: number;
-      title: string;
-      verdict: string;
-      riskScore: number;
-    }>;
+
+    return pullRequests;
   } catch {
     return [];
   }
 }
 
-export default async function RepositoryPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RepositoryPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const pullRequests = await loadPullRequests(id);
 
@@ -37,7 +45,7 @@ export default async function RepositoryPage({ params }: { params: Promise<{ id:
             <li key={pullRequest.id}>
               <Link href={`/prs/${encodeURIComponent(pullRequest.id)}`}>
                 #{pullRequest.number} {pullRequest.title}
-              </Link>{' '}
+              </Link>{" "}
               — {pullRequest.verdict} ({pullRequest.riskScore}/100)
             </li>
           ))

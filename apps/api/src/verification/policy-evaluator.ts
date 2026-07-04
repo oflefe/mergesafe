@@ -1,4 +1,5 @@
 import {
+  RequirementMode,
   Verdict,
   PolicyFailure,
   ReviewComment,
@@ -92,36 +93,67 @@ function describeRuleRequirements(rule: VerificationPolicyRule): string {
   if (requirements.length === 1) {
     return requirements[0];
   }
-  return `any of ${requirements.join(", ")}`;
+  const mode = rule.require?.mode ?? "all";
+  return `${mode === "any" ? "any of" : "all of"} ${requirements.join(", ")}`;
 }
 
-function describeMissingRequirements(
+function evaluateRequirementBuckets(
   rule: VerificationPolicyRule,
   testImpact: TestImpactResult,
   changedPaths: string[],
   reviewComments: ReviewComment[],
+): Array<{ description: string; satisfied: boolean }> {
+  const buckets: Array<{ description: string; satisfied: boolean }> = [];
+
+  if (rule.require?.changedPaths?.length) {
+    buckets.push({
+      description: `changed paths matching ${rule.require.changedPaths.join(", ")}`,
+      satisfied: matchesAnyPath(changedPaths, rule.require.changedPaths),
+    });
+  }
+  if (rule.require?.tests?.length) {
+    buckets.push({
+      description: `test evidence from ${rule.require.tests.join(", ")}`,
+      satisfied: rule.require.tests.some((testCategory) =>
+        hasTestCategory(testImpact, testCategory),
+      ),
+    });
+  }
+  if (rule.require?.review === "human") {
+    buckets.push({
+      description: "human review",
+      satisfied: hasHumanReview(reviewComments),
+    });
+  }
+
+  return buckets;
+}
+
+function isPolicyRuleSatisfied(
+  buckets: Array<{ description: string; satisfied: boolean }>,
+  mode: RequirementMode,
+): boolean {
+  if (buckets.length === 0) {
+    return false;
+  }
+  if (mode === "any") {
+    return buckets.some((bucket) => bucket.satisfied);
+  }
+  return buckets.every((bucket) => bucket.satisfied);
+}
+
+function describeMissingRequirements(
+  buckets: Array<{ description: string; satisfied: boolean }>,
+  mode: RequirementMode,
 ): string[] {
-  const missing: string[] = [];
-  if (
-    rule.require?.changedPaths?.length &&
-    !matchesAnyPath(changedPaths, rule.require.changedPaths)
-  ) {
-    missing.push(
-      `changed paths matching ${rule.require.changedPaths.join(", ")}`,
-    );
+  if (mode === "any") {
+    return buckets.some((bucket) => bucket.satisfied)
+      ? []
+      : buckets.map((bucket) => bucket.description);
   }
-  if (
-    rule.require?.tests?.length &&
-    !rule.require.tests.some((testCategory) =>
-      hasTestCategory(testImpact, testCategory),
-    )
-  ) {
-    missing.push(`test evidence from ${rule.require.tests.join(", ")}`);
-  }
-  if (rule.require?.review === "human" && !hasHumanReview(reviewComments)) {
-    missing.push("human review");
-  }
-  return missing;
+  return buckets
+    .filter((bucket) => !bucket.satisfied)
+    .map((bucket) => bucket.description);
 }
 
 export function evaluatePolicy(
@@ -148,28 +180,26 @@ export function evaluatePolicy(
         : rule.message,
     });
 
-    const missingRequirements = describeMissingRequirements(
+    const requirementMode = rule.require?.mode ?? "all";
+    const requirementBuckets = evaluateRequirementBuckets(
       rule,
       testImpact,
       changedPaths,
       reviewComments,
     );
-    const satisfiedBuckets = [
-      rule.require?.changedPaths?.length
-        ? matchesAnyPath(changedPaths, rule.require.changedPaths)
-        : false,
-      rule.require?.tests?.length
-        ? rule.require.tests.some((testCategory) =>
-            hasTestCategory(testImpact, testCategory),
-          )
-        : false,
-      rule.require?.review === "human" ? hasHumanReview(reviewComments) : false,
-    ].some(Boolean);
+    const missingRequirements = describeMissingRequirements(
+      requirementBuckets,
+      requirementMode,
+    );
+    const satisfied = isPolicyRuleSatisfied(
+      requirementBuckets,
+      requirementMode,
+    );
 
     if (
       missingRequirements.length === 0 ||
       rule.verdict === Verdict.PASS ||
-      satisfiedBuckets
+      satisfied
     ) {
       continue;
     }

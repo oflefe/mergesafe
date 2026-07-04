@@ -1,25 +1,56 @@
-heuristics:
-  branchIndicators:
-    - copilot
-    - claude
-    - cursor
-    - codex
-    - ai
-    - agent
-riskWeights:
-  agentAuthored: 18
-  auth: 30
-  payment: 30
-  migration: 24
-  env: 18
-  dependencyLockfile: 12
-  infrastructure: 20
-  apiContract: 18
-  missingTests: 22
-  largePr: 16
-  generatedText: 14
-hardRules:
-  authChangeRequiresIntegrationTest: true
-  migrationRequiresRollbackTest: true
-  envChangeRequiresDocsUpdate: true
-  paymentChangeRequiresManualReviewer: true
+version: 1
+rules:
+  - id: auth-security-requires-test-evidence
+    when:
+      paths:
+        - apps/api/src/auth/**
+        - apps/api/src/security/**
+        - apps/api/src/**/session*.ts
+        - apps/api/src/**/permission*.ts
+        - apps/web/**/auth/**
+    require:
+      tests:
+        - integration
+        - e2e
+    verdict: fail
+    message: Auth, security, session, and permissions changes require integration or e2e test evidence.
+  - id: migration-requires-rollback-evidence
+    when:
+      paths:
+        - apps/api/db/migrations/**
+        - apps/api/src/storage/**
+    require:
+      mode: any
+      changedPaths:
+        - README.md
+        - docs/rollback.md
+      tests:
+        - rollback
+    verdict: fail
+    message: Migration changes require rollback documentation or rollback test evidence.
+  - id: env-config-requires-docs
+    when:
+      paths:
+        - .env.example
+        - docker-compose.yml
+        - apps/api/src/bootstrap.ts
+        - apps/api/src/main.ts
+        - apps/api/src/**/config/**
+        - apps/api/src/**/env/**
+    require:
+      changedPaths:
+        - README.md
+        - .env.example
+    verdict: fail
+    message: Environment, config, and secrets-adjacent changes require documentation updates.
+  - id: payment-billing-requires-human-review
+    when:
+      paths:
+        - apps/api/src/**/payment/**
+        - apps/api/src/**/billing/**
+        - apps/web/**/payment/**
+        - apps/web/**/billing/**
+    require:
+      review: human
+    verdict: needs_review
+    message: Payment and billing changes require human review.

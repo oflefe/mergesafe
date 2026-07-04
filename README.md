@@ -103,6 +103,7 @@ Security and web:
 
 - DASHBOARD_ORIGIN: allowed CORS origin for dashboard
 - ADMIN_API_TOKEN: required in production for non-webhook API routes
+- DASHBOARD_API_TOKEN: optional server-side dashboard token; falls back to ADMIN_API_TOKEN
 
 GitHub App:
 
@@ -166,11 +167,18 @@ curl -X POST http://localhost:3001/webhooks/github \
 
 1. Provision PostgreSQL and Redis.
 2. Set all required environment variables in your deploy platform.
-3. Deploy API service from this repository.
-4. Run database migration in the deployed environment.
-5. Deploy web service.
-6. Update GitHub App webhook URL to the deployed API endpoint.
-7. Trigger a test PR event and confirm comment + check run creation.
+3. Set POSTGRES_PASSWORD and DATABASE_URL with platform-managed secrets in production.
+4. Deploy API service from this repository.
+5. Run database migration in the deployed environment.
+6. Deploy web service.
+7. Update GitHub App webhook URL to the deployed API endpoint.
+8. Trigger a test PR event and confirm comment + check run creation.
+
+Security note:
+
+- docker-compose local setup may use placeholder defaults for local development only.
+- Production must set POSTGRES_PASSWORD and DATABASE_URL securely.
+- If GitGuardian still reports a historical secret finding, resolve or acknowledge it before merge if repository policy requires that gate.
 
 ## Smoke test
 
@@ -231,29 +239,45 @@ curl -X POST http://localhost:3001/webhooks/github \
 ```yaml
 version: 1
 rules:
-	- id: auth-change-needs-integration
+	- id: auth-change-needs-verification
 		when:
 			paths:
-				- src/auth/**
-				- src/security/**
+				- apps/api/src/auth/**
+				- apps/api/src/security/**
 		require:
+			mode: all
 			tests:
-				- test/integration/**
+				- integration
+				- e2e
 			review: human
 		verdict: fail
-		message: Auth or security changes require integration coverage and human review.
+		message: Auth or security changes require integration or e2e evidence plus human review.
 
-	- id: migration-needs-rollback-evidence
+	- id: migration-change-needs-rollback-evidence
 		when:
 			paths:
-				- db/migrations/**
+				- apps/api/db/migrations/**
+		require:
+			mode: any
+			changedPaths:
+				- README.md
+				- docs/rollback.md
+			tests:
+				- rollback
+		verdict: fail
+		message: Migrations require rollback docs or rollback test evidence.
+
+	- id: env-change-needs-docs
+		when:
+			paths:
+				- .env.example
+				- apps/api/src/bootstrap.ts
 		require:
 			changedPaths:
-				- docs/rollback/**
-			tests:
-				- test/integration/**
-		verdict: needs_review
-		message: Migrations require rollback notes and integration verification evidence.
+				- README.md
+				- .env.example
+		verdict: fail
+		message: Env and config changes require docs.
 ```
 
 ## Short demo script

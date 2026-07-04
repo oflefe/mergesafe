@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
 import {
+  RequirementMode,
   Verdict,
   VerificationPolicy,
   VerificationPolicyRule,
@@ -77,6 +78,21 @@ function asStringArray(value: unknown, fieldPath: string): string[] {
   return value;
 }
 
+function parseRequirementMode(
+  value: unknown,
+  fieldPath: string,
+): RequirementMode | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "all" || value === "any") {
+    return value;
+  }
+  throw new PolicyConfigError(
+    `Invalid policy config: ${fieldPath} must be all or any.`,
+  );
+}
+
 function validateRule(rule: unknown, index: number): VerificationPolicyRule {
   if (!isRecord(rule)) {
     throw new PolicyConfigError(
@@ -126,6 +142,10 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
     require?.tests === undefined
       ? undefined
       : asStringArray(require.tests, `rules[${index}].require.tests`);
+  const mode = parseRequirementMode(
+    require?.mode,
+    `rules[${index}].require.mode`,
+  );
   const review = require?.review;
 
   if (review !== undefined && review !== "human") {
@@ -144,6 +164,7 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
     id,
     when: { paths },
     require: {
+      ...(mode ? { mode } : {}),
       ...(changedPaths ? { changedPaths } : {}),
       ...(tests ? { tests } : {}),
       ...(review ? { review } : {}),
@@ -197,6 +218,20 @@ export class PolicyLoader {
   }
 
   private localPath(): string {
-    return resolve(process.cwd(), ".agent-pr-verifier.yml");
+    let currentDirectory = process.cwd();
+
+    while (true) {
+      const candidatePath = resolve(currentDirectory, ".agent-pr-verifier.yml");
+      if (existsSync(candidatePath)) {
+        return candidatePath;
+      }
+
+      const parentDirectory = dirname(currentDirectory);
+      if (parentDirectory === currentDirectory) {
+        return resolve(process.cwd(), ".agent-pr-verifier.yml");
+      }
+
+      currentDirectory = parentDirectory;
+    }
   }
 }

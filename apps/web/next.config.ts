@@ -1,7 +1,14 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output: "standalone",
+  turbopack: {
+    root: path.join(configDirectory, "../.."),
+  },
 };
 
 export default nextConfig;
