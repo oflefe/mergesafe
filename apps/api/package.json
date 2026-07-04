@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "db:migrate": "node db/migrate.js",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --config jest.config.cjs --runInBand --testPathPatterns src",
     "test:integration": "jest --config jest.config.cjs --runInBand --testPathPatterns test/integration"

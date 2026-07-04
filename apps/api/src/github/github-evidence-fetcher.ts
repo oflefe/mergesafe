@@ -236,7 +236,7 @@ export class GitHubEvidenceFetcher {
     } catch (error) {
       if (this.isLenientEvidenceMode()) {
         this.logger.warn(
-          `Falling back to empty evidence for ${owner}/${repoName}#${pullNumber}: ${String(error)}`,
+          `Falling back to empty evidence for ${owner}/${repoName}#${pullNumber}`,
         );
         return emptyEvidence();
       }
@@ -760,7 +760,7 @@ export class GitHubEvidenceFetcher {
         if (allowStatuses.includes(response.status)) {
           return null;
         }
-        const message = `GitHub API responded ${response.status} for ${label}: ${url}`;
+        const message = `GitHub API responded ${response.status} for ${label}`;
         if (mode === "optional") {
           this.logger.warn(message);
           return null;
@@ -770,14 +770,10 @@ export class GitHubEvidenceFetcher {
       return (await response.json()) as T;
     } catch (error) {
       if (mode === "optional") {
-        this.logger.warn(
-          `GitHub API request failed for ${label}: ${String(error)}`,
-        );
+        this.logger.warn(`GitHub API request failed for ${label}`);
         return null;
       }
-      throw new EvidenceFetchError(
-        `GitHub API request failed for ${label}: ${String(error)}`,
-      );
+      throw new EvidenceFetchError(`GitHub API request failed for ${label}`);
     }
   }
 
@@ -852,9 +848,7 @@ export class GitHubEvidenceFetcher {
       if (error instanceof EvidenceFetchError) {
         throw error;
       }
-      throw new EvidenceFetchError(
-        `Installation token mint request failed: ${String(error)}`,
-      );
+      throw new EvidenceFetchError("Installation token mint request failed");
     }
   }
 

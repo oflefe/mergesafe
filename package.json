@@ -7,6 +7,8 @@
     "apps/*"
   ],
   "scripts": {
+    "lint": "npm run lint -w @mergesafe/api && npm run lint -w @mergesafe/web",
+    "typecheck": "npm run typecheck -w @mergesafe/api && npm run typecheck -w @mergesafe/web",
     "build": "npm run build -w @mergesafe/api && npm run build -w @mergesafe/web",
     "db:migrate": "npm run db:migrate -w @mergesafe/api",
     "test": "npm run test -w @mergesafe/api",

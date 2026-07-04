@@ -274,9 +274,8 @@ export class GitHubAppClient {
     }
 
     if (!response.ok) {
-      const details = await this.safeReadResponseBody(response);
       throw new Error(
-        `GitHub API request failed (${response.status}) for ${this.requestLabel(init.method)} ${this.safeUrlPath(url)}${details ? `: ${details}` : ""}`,
+        `GitHub API request failed (${response.status}) for ${this.requestLabel(init.method)} ${this.safeUrlPath(url)}`,
       );
     }
 
@@ -331,9 +330,8 @@ export class GitHubAppClient {
     }
 
     if (!response.ok) {
-      const details = await this.safeReadResponseBody(response);
       throw new Error(
-        `GitHub API request failed (${response.status}) for ${this.requestLabel(init.method)} ${this.safeUrlPath(url)}${details ? `: ${details}` : ""}`,
+        `GitHub API request failed (${response.status}) for ${this.requestLabel(init.method)} ${this.safeUrlPath(url)}`,
       );
     }
 
@@ -422,17 +420,5 @@ export class GitHubAppClient {
       return error.message;
     }
     return String(error);
-  }
-
-  private async safeReadResponseBody(response: Response): Promise<string> {
-    try {
-      const text = (await response.text()).trim();
-      if (!text) {
-        return "";
-      }
-      return text.slice(0, 300);
-    } catch {
-      return "";
-    }
   }
 }
