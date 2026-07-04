@@ -1,4 +1,8 @@
-import { resolveCorsOrigin, validateEnvironment } from "./bootstrap";
+import {
+  loadEnvironment,
+  resolveCorsOrigin,
+  validateEnvironment,
+} from "./bootstrap";
 
 describe("bootstrap security configuration", () => {
   it("GIVEN DASHBOARD_ORIGIN is configured WHEN resolving CORS origin THEN it uses that exact origin", () => {
@@ -19,5 +23,28 @@ describe("bootstrap security configuration", () => {
     ).toThrow(
       "Missing required environment variables in production: GITHUB_APP_ID, GITHUB_PRIVATE_KEY, GITHUB_WEBHOOK_SECRET",
     );
+  });
+
+  it("GIVEN existing env files with duplicates WHEN loading environment THEN each existing file is loaded once", () => {
+    const loadedPaths: string[] = [];
+
+    loadEnvironment({
+      envFileCandidates: ["/tmp/.env", "/tmp/.env", "/tmp/.env.local"],
+      envFileExists: (envFilePath) => envFilePath !== "/tmp/.env.local",
+      envFileLoader: (envFilePath) => {
+        loadedPaths.push(envFilePath);
+      },
+    });
+
+    expect(loadedPaths).toEqual(["/tmp/.env"]);
+  });
+
+  it("GIVEN no env files exist WHEN loading environment THEN it safely does nothing", () => {
+    expect(() =>
+      loadEnvironment({
+        envFileCandidates: ["/tmp/.env"],
+        envFileExists: () => false,
+      }),
+    ).not.toThrow();
   });
 });

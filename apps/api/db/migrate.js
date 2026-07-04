@@ -2,12 +2,71 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Pool } = require("pg");
 
+function loadEnvironment() {
+  const loadEnvFile = process.loadEnvFile;
+  if (typeof loadEnvFile !== "function") {
+    return;
+  }
+
+  const envFiles = [
+    path.resolve(__dirname, "../.env"),
+    path.resolve(__dirname, "../../../.env"),
+  ];
+
+  for (const envFile of envFiles) {
+    if (fs.existsSync(envFile)) {
+      loadEnvFile(envFile);
+    }
+  }
+}
+
+function summarizeConnectionTarget(connectionString) {
+  try {
+    const url = new URL(connectionString);
+    const protocol = url.protocol.replace(":", "");
+    const host = url.hostname || "localhost";
+    const port = url.port || "5432";
+    const database = url.pathname.replace(/^\//, "") || "postgres";
+    return `${protocol}://${host}:${port}/${database}`;
+  } catch {
+    return "invalid DATABASE_URL";
+  }
+}
+
+async function wait(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function connectWithRetry(pool, connectionString) {
+  const maxAttempts = Number(process.env.DB_CONNECT_MAX_ATTEMPTS ?? 20);
+  const retryDelayMs = Number(process.env.DB_CONNECT_RETRY_DELAY_MS ?? 1000);
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await pool.connect();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await wait(retryDelayMs);
+      }
+    }
+  }
+
+  const message =
+    lastError instanceof Error ? lastError.message : String(lastError);
+  const target = summarizeConnectionTarget(connectionString);
+  throw new Error(`Failed to connect to ${target}: ${message}`);
+}
+
 async function run() {
+  loadEnvironment();
+
   const connectionString =
     process.env.DATABASE_URL ||
     "postgres://postgres:postgres@localhost:5432/mergesafe";
   const pool = new Pool({ connectionString });
-  const client = await pool.connect();
+  const client = await connectWithRetry(pool, connectionString);
 
   try {
     await client.query("BEGIN");

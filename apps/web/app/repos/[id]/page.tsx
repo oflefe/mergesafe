@@ -32,12 +32,13 @@ export default async function RepositoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const pullRequests = await loadPullRequests(id);
+  const repositoryId = decodeURIComponent(id);
+  const pullRequests = await loadPullRequests(repositoryId);
 
   return (
     <section>
       <Link href="/">← Back</Link>
-      <h1>{decodeURIComponent(id)}</h1>
+      <h1>{repositoryId}</h1>
       <ul>
         {pullRequests.length === 0 ? (
           <li>No PRs have been verified yet.</li>

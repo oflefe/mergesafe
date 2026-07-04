@@ -3,6 +3,8 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from "@nestjs/platform-fastify";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { AppModule } from "./app.module";
 
 type Environment = NodeJS.ProcessEnv;
@@ -14,6 +16,37 @@ const REQUIRED_PRODUCTION_VARIABLES = [
   "GITHUB_PRIVATE_KEY",
   "GITHUB_WEBHOOK_SECRET",
 ] as const;
+
+const ENV_FILE_CANDIDATES = [
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "apps/api/.env"),
+  path.resolve(__dirname, "../.env"),
+  path.resolve(__dirname, "../../.env"),
+  path.resolve(__dirname, "../../../.env"),
+] as const;
+
+export type EnvFileLoader = (path: string) => void;
+
+export function loadEnvironment(options?: {
+  envFileCandidates?: readonly string[];
+  envFileExists?: (path: string) => boolean;
+  envFileLoader?: EnvFileLoader;
+}): void {
+  const envFileLoader = options?.envFileLoader ?? process.loadEnvFile;
+  if (typeof envFileLoader !== "function") {
+    return;
+  }
+
+  const envFileExists = options?.envFileExists ?? existsSync;
+  const envFileCandidates = options?.envFileCandidates ?? ENV_FILE_CANDIDATES;
+  const uniqueCandidates = new Set(envFileCandidates);
+
+  for (const envFilePath of uniqueCandidates) {
+    if (envFileExists(envFilePath)) {
+      envFileLoader(envFilePath);
+    }
+  }
+}
 
 export function isProduction(env: Environment = process.env): boolean {
   return (env.NODE_ENV ?? "").toLowerCase() === "production";
@@ -121,6 +154,7 @@ export function applySecurity(
 }
 
 export async function bootstrap(): Promise<NestFastifyApplication> {
+  loadEnvironment();
   validateEnvironment(process.env);
 
   const app = await NestFactory.create<NestFastifyApplication>(

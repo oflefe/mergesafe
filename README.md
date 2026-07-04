@@ -1,296 +1,231 @@
 # MergeSafe
 
 MergeSafe is an evidence-based PR verification gate for agent-generated pull requests.
-It ingests GitHub pull_request events, computes risk from changed files and commit context, evaluates policy rules, summarizes external AI-review findings, and posts one upserted verification comment plus a check run.
+It ingests GitHub `pull_request` events, computes risk from changed files and commit context, evaluates policy rules, summarizes external AI-review findings, and generates a verification result.
 
-## What MergeSafe is
+This guide is written for someone with zero prior context on this repository.
 
-- A deterministic policy and risk engine for PRs.
-- A verifier that turns PR evidence into PASS, NEEDS_REVIEW, or FAIL.
-- A webhook-driven API plus a small dashboard for viewing repository and PR verification state.
-- A system that prefers actionable outputs: required steps, missing tests, and suggested test commands.
+## What You Get
 
-## What MergeSafe is not
+- API service that receives webhook/recheck requests and computes verification.
+- Web dashboard that lists repositories, PRs, and verification outcomes.
+- Local Postgres + Redis via Docker Compose.
 
-- Not a replacement for human code review.
-- Not a static analyzer or SAST product.
-- Not a merge bot.
-- Not a full CI system.
-- Not a guarantee that code is safe, correct, or compliant.
-
-## Repository layout
-
-- apps/api: NestJS API for webhook ingestion, verification, persistence, and GitHub API write-back.
-- apps/web: Next.js dashboard for repos and PR verification state.
-- apps/api/db/migrations/001_initial.sql: initial PostgreSQL schema.
-- .agent-pr-verifier.yml: repository policy file consumed by verification.
-
-## Local setup
-
-Prerequisites:
+## Prerequisites
 
 - Node.js 22+
 - npm 10+
-- Docker (for local Postgres and Redis)
+- Docker + Docker Compose
 
-Setup:
+Check versions:
+
+```bash
+node -v
+npm -v
+docker --version
+docker compose version
+```
+
+## Quick Start (Local-Only, No GitHub App)
+
+This path is the fastest way to run MergeSafe locally.
+
+1. Clone and install dependencies.
+
+```bash
+git clone <this-repo-url>
+cd mergesafe
+npm ci
+```
+
+2. Create your env file.
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres redis
-npm ci
-npm run db:migrate -w @mergesafe/api
 ```
 
-Run locally:
+3. Put these values into `.env`.
+
+```env
+PORT=3001
+NODE_ENV=development
+
+# Local Docker DB/Redis in this repo use host ports 5433 and 6377.
+POSTGRES_PASSWORD=postgres
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/mergesafe
+REDIS_URL=redis://localhost:6377
+
+DASHBOARD_ORIGIN=http://localhost:3000
+ADMIN_API_TOKEN=local-dev-admin-token
+DASHBOARD_API_TOKEN=local-dev-dashboard-token
+
+# Local-only testing without webhook signature:
+GITHUB_WEBHOOK_SECRET=
+
+# Optional but recommended for real evidence fetch from GitHub:
+GITHUB_TOKEN=
+
+# Not required for local-only mode:
+GITHUB_APP_ID=
+GITHUB_PRIVATE_KEY=
+```
+
+4. Start infrastructure and migrate DB.
+
+```bash
+docker compose up -d postgres redis
+npm run db:migrate
+```
+
+5. Start API and Web in separate terminals.
+
+Terminal 1:
 
 ```bash
 npm run start:api
-npm run build:web
 ```
 
-Notes:
-
-- API default port is 3001.
-- Web dashboard default origin is http://localhost:3000.
-- Queue execution is inline when REDIS_URL is unset, BullMQ when REDIS_URL is set.
-
-## GitHub App setup
-
-1. Create a GitHub App in your organization or personal account.
-2. Enable webhook delivery.
-3. Subscribe to pull_request events.
-4. Install the app on target repositories.
-5. Copy the App ID and generate a private key.
-6. Set environment variables in your runtime environment.
-
-### Required permissions
-
-Repository permissions:
-
-- Metadata: Read-only
-- Pull requests: Read-only
-- Contents: Read-only
-- Issues: Read and write
-- Checks: Read and write
-
-Events:
-
-- Pull request
-
-## Webhook URL setup
-
-Set your GitHub App webhook URL to:
-
-- https://<your-api-domain>/webhooks/github
-
-If testing locally with a tunnel:
-
-- https://<your-tunnel-domain>/webhooks/github
-
-Set the same webhook secret value in GitHub App settings and GITHUB_WEBHOOK_SECRET.
-
-## Environment variables
-
-Core runtime:
-
-- PORT: API port (default 3001)
-- NODE_ENV: development or production
-- DATABASE_URL: PostgreSQL connection string
-- REDIS_URL: Redis connection string
-
-Security and web:
-
-- DASHBOARD_ORIGIN: allowed CORS origin for dashboard
-- ADMIN_API_TOKEN: required in production for non-webhook API routes
-- DASHBOARD_API_TOKEN: optional server-side dashboard token; falls back to ADMIN_API_TOKEN
-
-GitHub App:
-
-- GITHUB_APP_ID
-- GITHUB_PRIVATE_KEY
-- GITHUB_WEBHOOK_SECRET
-
-Optional behavior flags:
-
-- GITHUB_TOKEN: fallback for GitHub evidence reads in local/test contexts
-- MERGESAFE_POLICY_REF: branch/ref used for policy file fetch
-- MERGESAFE_ALLOW_EMPTY_EVIDENCE: allow empty evidence in fail-open scenarios
-
-## Database migration command
+Terminal 2:
 
 ```bash
-npm run db:migrate -w @mergesafe/api
+npm run start:web
 ```
 
-## Running tests
+6. Open the dashboard.
 
-From a clean checkout:
+- http://localhost:3000
+
+## Where To Obtain Each Env Var
+
+### Values You Choose Yourself (local defaults are fine)
+
+- `PORT`: API listen port, usually `3001`.
+- `NODE_ENV`: use `development` locally.
+- `POSTGRES_PASSWORD`: choose any local password.
+- `ADMIN_API_TOKEN`: choose any random token for protected routes in production.
+- `DASHBOARD_API_TOKEN`: choose any random token; for local you can reuse admin token.
+
+### Values Derived From Local Docker Setup
+
+- `DATABASE_URL`: built from your DB user/password/host/port/db name.
+  - This repo defaults to `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/mergesafe`.
+- `REDIS_URL`: built from host/port.
+  - This repo defaults to `redis://localhost:6377`.
+- `DASHBOARD_ORIGIN`: where web UI runs, usually `http://localhost:3000`.
+
+### Values From GitHub (Optional Local, Required For Full GitHub Integration)
+
+- `GITHUB_TOKEN`:
+  - Source: GitHub user settings -> Developer settings -> Personal access tokens.
+  - Use a fine-grained token with repository read access for target repos.
+- `GITHUB_APP_ID`:
+  - Source: GitHub App settings -> General -> App ID.
+- `GITHUB_PRIVATE_KEY`:
+  - Source: GitHub App settings -> Private keys -> Generate private key.
+  - Put the PEM content in `.env` (with `\n` newlines if single-line format).
+- `GITHUB_WEBHOOK_SECRET`:
+  - Source: GitHub App settings -> Webhook -> Secret.
+  - Must match signature used in incoming webhook requests.
+
+## First Verification Run (Without GitHub App)
+
+Use this to confirm API, DB, and UI wiring works.
+
+1. Optional: set `GITHUB_TOKEN` in `.env` for richer evidence fetching.
+2. Send a synthetic webhook payload.
 
 ```bash
-npm ci
-npm run lint
-npm run typecheck
-npm run test:unit
-npm run test:integration
-npm run build
-```
-
-Single command:
-
-```bash
-npm test
-```
-
-## Local webhook testing
-
-1. Start API locally.
-2. Expose local port 3001 with a tunnel (for example ngrok).
-3. Configure GitHub App webhook URL to your tunnel URL + /webhooks/github.
-4. Trigger a PR open or synchronize event in a repo where the app is installed.
-
-Manual curl test with signature:
-
-```bash
-payload='{"action":"opened","repository":{"name":"demo","owner":{"login":"octo"}},"pull_request":{"number":7,"title":"Auth hardening","body":"Update auth checks","head":{"ref":"copilot/auth-hardening","sha":"abc123def456"},"base":{"ref":"main"},"user":{"login":"copilot-swe-agent[bot]"}}}'
-secret='replace-me'
-sig=$(printf "%s" "$payload" | openssl dgst -sha256 -hmac "$secret" -binary | xxd -p -c 256)
+payload='{"action":"synchronize","repository":{"name":"vibe-sec","full_name":"oflefe/vibe-sec","owner":{"login":"oflefe"}},"pull_request":{"number":1,"id":3989949978,"title":"[codex] build vibe app security scanner","body":"manual local trigger","user":{"login":"oflefe"},"head":{"ref":"codex/vibe-app-security-scanner","sha":"b587282c1367465cae9c10c91aa30efc8044e8b4"},"base":{"ref":"main"}}}'
 
 curl -X POST http://localhost:3001/webhooks/github \
-	-H "x-github-event: pull_request" \
-	-H "x-hub-signature-256: sha256=$sig" \
-	-H "content-type: application/json" \
-	-d "$payload"
+  -H "x-github-event: pull_request" \
+  -H "content-type: application/json" \
+  -d "$payload"
 ```
 
-## Deployment steps
+3. Verify data landed.
 
-1. Provision PostgreSQL and Redis.
-2. Set all required environment variables in your deploy platform.
-3. Set POSTGRES_PASSWORD and DATABASE_URL with platform-managed secrets in production.
-4. Deploy API service from this repository.
-5. Run database migration in the deployed environment.
-6. Deploy web service.
-7. Update GitHub App webhook URL to the deployed API endpoint.
-8. Trigger a test PR event and confirm comment + check run creation.
-
-Security note:
-
-- docker-compose local setup may use placeholder defaults for local development only.
-- Production must set POSTGRES_PASSWORD and DATABASE_URL securely.
-- If GitGuardian still reports a historical secret finding, resolve or acknowledge it before merge if repository policy requires that gate.
-
-## Smoke test
-
-1. Open a PR that touches low-risk docs-only files.
-2. Confirm MergeSafe comment appears and check run is created.
-3. Confirm PR appears in dashboard repo and PR detail pages.
-4. Open a risky PR (auth or migration changes).
-5. Confirm higher risk score and stricter required verification steps.
-
-## Rollback notes
-
-- Keep previous API and web deployment artifacts available.
-- If rollout fails, revert to the previous known-good release.
-- If a migration introduces incompatibility, restore from database snapshot and redeploy previous release.
-- Re-test webhook processing with a known PR payload after rollback.
-
-## Example PR output
-
-```md
-<!-- mergesafe-verification -->
-
-## MergeSafe Verification
-
-**Risk score:** 78/100 (HIGH)
-**Verdict:** Do not merge until required evidence is added
-
-### Why this PR is risky
-
-- Authentication-sensitive paths changed (+30)
-- Migration file changed (+24)
-- Agent-authored branch indicator detected (+18)
-
-### Required verification steps
-
-- Add or update integration tests that cover auth/session flows.
-- Provide rollback validation for migration changes.
-- Request human review for high-risk changes.
-
-### Suggested test commands
-
-- npm run test:integration -w @mergesafe/api
-
-### Missing tests
-
-- Missing integration coverage for src/auth/session.service.ts
-
-### Existing AI-review findings
-
-- [copilot] Null-check missing around decoded token path.
-
-### CI status
-
-- CI requires attention - unit-tests: success, integration-tests: failure
+```bash
+curl http://localhost:3001/repos
+curl http://localhost:3001/repos/oflefe%2Fvibe-sec/prs
+curl http://localhost:3001/prs/oflefe%2Fvibe-sec%231/verification
 ```
 
-## Example policy config
+4. Check in UI.
 
-```yaml
-version: 1
-rules:
-  - id: auth-change-needs-verification
-    when:
-      paths:
-        - apps/api/src/auth/**
-        - apps/api/src/security/**
-    require:
-      mode: all
-      tests:
-        - integration
-        - e2e
-      review: human
-    verdict: fail
-    message: Auth or security changes require integration or e2e evidence plus human review.
+- http://localhost:3000
+- open repository `oflefe/vibe-sec`
+- open PR `oflefe/vibe-sec#1`
 
-  - id: migration-change-needs-rollback-evidence
-    when:
-      paths:
-        - apps/api/db/migrations/**
-    require:
-      mode: any
-      changedPaths:
-        - README.md
-        - docs/rollback.md
-      tests:
-        - rollback
-    verdict: fail
-    message: Migrations require rollback docs or rollback test evidence.
+## Full GitHub App Mode (Comment + Check Run Write-Back)
 
-  - id: env-change-needs-docs
-    when:
-      paths:
-        - .env.example
-        - apps/api/src/bootstrap.ts
-    require:
-      changedPaths:
-        - README.md
-        - .env.example
-    verdict: fail
-    message: Env and config changes require docs.
+Use this mode when you want MergeSafe to post/update PR comments and check runs on GitHub.
+
+1. Create a GitHub App.
+2. Set permissions:
+   - Metadata: Read-only
+   - Pull requests: Read-only
+   - Contents: Read-only
+   - Issues: Read and write
+   - Checks: Read and write
+3. Subscribe to `pull_request` webhook events.
+4. Install the app on your target repository.
+5. Configure env vars:
+   - `GITHUB_APP_ID`
+   - `GITHUB_PRIVATE_KEY`
+   - `GITHUB_WEBHOOK_SECRET`
+6. Expose local API with a tunnel and set webhook URL:
+   - `https://<your-tunnel-domain>/webhooks/github`
+
+## Troubleshooting
+
+### `EADDRINUSE` on start
+
+Ports already in use. Free them:
+
+```bash
+fuser -k 3000/tcp || true
+fuser -k 3001/tcp || true
 ```
 
-## Short demo script
+### `password authentication failed for user "postgres"`
 
-1. Docs-only PR:
-   - Create PR with only docs changes.
-   - Show low risk score and PASS or NEEDS_REVIEW output.
-2. Risky auth/config/migration PR:
-   - Change auth logic, env config, and a migration.
-   - Show higher risk score and FAIL/NEEDS_REVIEW with required steps.
-3. Add tests and docs:
-   - Add integration tests and rollback/docs evidence.
-   - Push update to same PR.
-4. Recheck and updated verdict:
-   - Trigger synchronize event.
-   - Show existing comment updated in place and improved verdict.
+`POSTGRES_PASSWORD` and `DATABASE_URL` password do not match. Ensure both use the same value.
+
+### `Missing webhook signature`
+
+You set `GITHUB_WEBHOOK_SECRET` but did not send `x-hub-signature-256`.
+
+For local unsigned testing, set:
+
+```env
+GITHUB_WEBHOOK_SECRET=
+```
+
+Then restart API.
+
+### UI shows empty while API has data
+
+Hard refresh browser, then open:
+
+- http://localhost:3000/repos/oflefe%2Fvibe-sec
+- http://localhost:3000/prs/oflefe%2Fvibe-sec%231
+
+## Useful Commands
+
+```bash
+# lint + typecheck + tests + build
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+
+# db migrate
+npm run db:migrate
+
+# run API
+npm run start:api
+
+# run Web
+npm run start:web
+```

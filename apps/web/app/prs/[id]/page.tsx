@@ -25,11 +25,12 @@ export default async function PullRequestPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const verification = await loadVerification(id);
+  const pullRequestId = decodeURIComponent(id);
+  const verification = await loadVerification(pullRequestId);
 
   return (
     <section>
-      <h1>{decodeURIComponent(id)}</h1>
+      <h1>{pullRequestId}</h1>
       {verification ? (
         <>
           <p>
