@@ -75,8 +75,7 @@ function hasDeletedTests(files: ChangedFile[]): boolean {
     (file) =>
       /(^|\/)(tests?|__tests__|specs?)\/|(\.|_)(spec|test)\./i.test(
         file.path,
-      ) &&
-      ["removed", "deleted"].includes((file.status ?? "").toLowerCase()),
+      ) && ["removed", "deleted"].includes((file.status ?? "").toLowerCase()),
   );
 }
 
@@ -98,7 +97,9 @@ function hasExcessiveMocks(files: ChangedFile[]): boolean {
       continue;
     }
     for (const line of extractAddedPatchLines(file.patch)) {
-      if (/\b(jest|vi)\.mock\s*\(|\bmock(Return|Resolved)Value\s*\(/i.test(line)) {
+      if (
+        /\b(jest|vi)\.mock\s*\(|\bmock(Return|Resolved)Value\s*\(/i.test(line)
+      ) {
         mockCount += 1;
       }
     }
@@ -122,8 +123,8 @@ export function scoreRisk(
     files.length > 0 && files.every((file) => isDocsFile(file.path));
   const weight = (key: string) => policy.riskWeights[key] ?? 0;
 
-  const strongBranchSignal = policy.heuristics.branchIndicators.some((indicator) =>
-    branchHasIndicator(request.branchName, indicator),
+  const strongBranchSignal = policy.heuristics.branchIndicators.some(
+    (indicator) => branchHasIndicator(request.branchName, indicator),
   );
   const strongAuthorSignal = hasStrongBotAuthorSignal(request.author);
   const weakSignals = [

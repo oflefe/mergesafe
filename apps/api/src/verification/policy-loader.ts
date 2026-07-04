@@ -1,17 +1,17 @@
-import { Injectable } from '@nestjs/common';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { parse } from 'yaml';
+import { Injectable } from "@nestjs/common";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parse } from "yaml";
 import {
   Verdict,
   VerificationPolicy,
   VerificationPolicyRule,
-} from '../domain/types';
+} from "../domain/types";
 
 export class PolicyConfigError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'PolicyConfigError';
+    this.name = "PolicyConfigError";
   }
 }
 
@@ -19,7 +19,7 @@ const defaultPolicy: VerificationPolicy = {
   version: 1,
   rules: [],
   heuristics: {
-    branchIndicators: ['copilot', 'claude', 'cursor', 'codex', 'ai', 'agent'],
+    branchIndicators: ["copilot", "claude", "cursor", "codex", "ai", "agent"],
   },
   riskWeights: {
     agentAuthored: 18,
@@ -40,19 +40,19 @@ const defaultPolicy: VerificationPolicy = {
 };
 
 function parseVerdict(value: unknown, fieldPath: string): Verdict {
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     throw new PolicyConfigError(
       `Invalid policy config: ${fieldPath} must be pass, needs_review, or fail.`,
     );
   }
   const normalized = value.toLowerCase();
-  if (normalized === 'pass') {
+  if (normalized === "pass") {
     return Verdict.PASS;
   }
-  if (normalized === 'needs_review') {
+  if (normalized === "needs_review") {
     return Verdict.NEEDS_REVIEW;
   }
-  if (normalized === 'fail') {
+  if (normalized === "fail") {
     return Verdict.FAIL;
   }
   throw new PolicyConfigError(
@@ -61,23 +61,27 @@ function parseVerdict(value: unknown, fieldPath: string): Verdict {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asStringArray(value: unknown, fieldPath: string): string[] {
   if (
     !Array.isArray(value) ||
     value.length === 0 ||
-    value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+    value.some((entry) => typeof entry !== "string" || entry.length === 0)
   ) {
-    throw new PolicyConfigError(`Invalid policy config: ${fieldPath} must be a non-empty string array.`);
+    throw new PolicyConfigError(
+      `Invalid policy config: ${fieldPath} must be a non-empty string array.`,
+    );
   }
   return value;
 }
 
 function validateRule(rule: unknown, index: number): VerificationPolicyRule {
   if (!isRecord(rule)) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}] must be an object.`);
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}] must be an object.`,
+    );
   }
 
   const id = rule.id;
@@ -86,37 +90,54 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
   const verdict = rule.verdict;
   const message = rule.message;
 
-  if (typeof id !== 'string' || id.length === 0) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].id must be a non-empty string.`);
+  if (typeof id !== "string" || id.length === 0) {
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}].id must be a non-empty string.`,
+    );
   }
   if (!isRecord(when)) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].when must be an object.`);
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}].when must be an object.`,
+    );
   }
 
   const paths = asStringArray(when.paths, `rules[${index}].when.paths`);
   const parsedVerdict = parseVerdict(verdict, `rules[${index}].verdict`);
-  if (typeof message !== 'string' || message.length === 0) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].message must be a non-empty string.`);
+  if (typeof message !== "string" || message.length === 0) {
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}].message must be a non-empty string.`,
+    );
   }
 
   if (require !== undefined && !isRecord(require)) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].require must be an object.`);
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}].require must be an object.`,
+    );
   }
 
-  const changedPaths = require?.changedPaths === undefined
-    ? undefined
-    : asStringArray(require.changedPaths, `rules[${index}].require.changedPaths`);
-  const tests = require?.tests === undefined
-    ? undefined
-    : asStringArray(require.tests, `rules[${index}].require.tests`);
+  const changedPaths =
+    require?.changedPaths === undefined
+      ? undefined
+      : asStringArray(
+          require.changedPaths,
+          `rules[${index}].require.changedPaths`,
+        );
+  const tests =
+    require?.tests === undefined
+      ? undefined
+      : asStringArray(require.tests, `rules[${index}].require.tests`);
   const review = require?.review;
 
-  if (review !== undefined && review !== 'human') {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}].require.review must be human.`);
+  if (review !== undefined && review !== "human") {
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}].require.review must be human.`,
+    );
   }
 
   if (!changedPaths && !tests && !review) {
-    throw new PolicyConfigError(`Invalid policy config: rules[${index}] must require tests, changed paths, or review.`);
+    throw new PolicyConfigError(
+      `Invalid policy config: rules[${index}] must require tests, changed paths, or review.`,
+    );
   }
 
   return {
@@ -137,24 +158,30 @@ export class PolicyLoader {
   load(policyText?: string): VerificationPolicy {
     const fileText =
       policyText ??
-      (existsSync(this.localPath()) ? readFileSync(this.localPath(), 'utf8') : undefined);
+      (existsSync(this.localPath())
+        ? readFileSync(this.localPath(), "utf8")
+        : undefined);
     if (!fileText) {
       return defaultPolicy;
     }
 
     const parsed = parse(fileText);
     if (!isRecord(parsed)) {
-      throw new PolicyConfigError('Invalid policy config: top-level YAML must be an object.');
+      throw new PolicyConfigError(
+        "Invalid policy config: top-level YAML must be an object.",
+      );
     }
 
     const version = parsed.version;
     if (version !== 1) {
-      throw new PolicyConfigError('Invalid policy config: version must be 1.');
+      throw new PolicyConfigError("Invalid policy config: version must be 1.");
     }
 
     const rulesValue = parsed.rules;
     if (!Array.isArray(rulesValue)) {
-      throw new PolicyConfigError('Invalid policy config: rules must be an array.');
+      throw new PolicyConfigError(
+        "Invalid policy config: rules must be an array.",
+      );
     }
 
     return {
@@ -170,6 +197,6 @@ export class PolicyLoader {
   }
 
   private localPath(): string {
-    return resolve(process.cwd(), '.agent-pr-verifier.yml');
+    return resolve(process.cwd(), ".agent-pr-verifier.yml");
   }
 }

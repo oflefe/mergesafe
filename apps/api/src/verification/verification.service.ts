@@ -1,18 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   RiskLevel,
   Verdict,
   VerificationRequest,
   VerificationResult,
-} from '../domain/types';
-import { summarizeCiEvidence } from './ci-evidence-summary';
-import { extractExternalReviewFindings } from './external-review-findings';
-import { PolicyConfigError, PolicyLoader } from './policy-loader';
-import { evaluatePolicy } from './policy-evaluator';
-import { renderVerificationReport } from './report-renderer';
-import { scoreRisk } from './risk-scoring';
-import { suggestTestCommands } from './test-command-suggestion';
-import { mapImpactedTests } from './test-impact';
+} from "../domain/types";
+import { summarizeCiEvidence } from "./ci-evidence-summary";
+import { extractExternalReviewFindings } from "./external-review-findings";
+import { PolicyConfigError, PolicyLoader } from "./policy-loader";
+import { evaluatePolicy } from "./policy-evaluator";
+import { renderVerificationReport } from "./report-renderer";
+import { scoreRisk } from "./risk-scoring";
+import { suggestTestCommands } from "./test-command-suggestion";
+import { mapImpactedTests } from "./test-impact";
 
 @Injectable()
 export class VerificationService {
@@ -35,9 +35,9 @@ export class VerificationService {
       request.checkRuns.length > 0 &&
       request.checkRuns.every(
         (checkRun) =>
-          checkRun.conclusion === 'success' ||
-          checkRun.conclusion === 'neutral' ||
-          checkRun.conclusion === 'skipped',
+          checkRun.conclusion === "success" ||
+          checkRun.conclusion === "neutral" ||
+          checkRun.conclusion === "skipped",
       );
     const externalReviewFindings = extractExternalReviewFindings(
       request.reviewComments,
@@ -54,17 +54,21 @@ export class VerificationService {
         policy,
       );
 
-      const verificationRequirements = [...policyEvaluation.verificationRequirements];
-      if (risk.riskFindings.some((finding) => finding.code === 'missing-tests')) {
+      const verificationRequirements = [
+        ...policyEvaluation.verificationRequirements,
+      ];
+      if (
+        risk.riskFindings.some((finding) => finding.code === "missing-tests")
+      ) {
         verificationRequirements.push({
-          code: 'add-tests',
-          message: 'Add or update tests that exercise the changed code paths.',
+          code: "add-tests",
+          message: "Add or update tests that exercise the changed code paths.",
         });
       }
       if (!ciPassed) {
         verificationRequirements.push({
-          code: 'green-ci',
-          message: 'Get existing CI checks to a passing state before merge.',
+          code: "green-ci",
+          message: "Get existing CI checks to a passing state before merge.",
         });
       }
 
@@ -78,7 +82,8 @@ export class VerificationService {
           ? Verdict.NEEDS_REVIEW
           : Verdict.PASS;
       const verdict =
-        policyFailureVerdict === Verdict.FAIL || risk.riskLevel === RiskLevel.CRITICAL
+        policyFailureVerdict === Verdict.FAIL ||
+        risk.riskLevel === RiskLevel.CRITICAL
           ? Verdict.FAIL
           : policyFailureVerdict === Verdict.NEEDS_REVIEW ||
               !ciPassed ||
@@ -89,12 +94,11 @@ export class VerificationService {
       const checkConclusion =
         policyEvaluation.policyFailures.some(
           (failure) => failure.verdict === Verdict.FAIL,
-        ) ||
-        risk.riskLevel === RiskLevel.CRITICAL
-          ? 'failure'
+        ) || risk.riskLevel === RiskLevel.CRITICAL
+          ? "failure"
           : verdict === Verdict.PASS
-            ? 'success'
-            : 'neutral';
+            ? "success"
+            : "neutral";
 
       const commentBody = renderVerificationReport({
         riskScore: risk.riskScore,
@@ -133,7 +137,7 @@ export class VerificationService {
       const failureMessage = error.message;
       const verificationRequirements = [
         {
-          code: 'policy-config-invalid',
+          code: "policy-config-invalid",
           message: failureMessage,
         },
       ];
@@ -158,7 +162,7 @@ export class VerificationService {
         testImpact,
         policyFailures: [
           {
-            code: 'policy-config-invalid',
+            code: "policy-config-invalid",
             verdict: Verdict.FAIL,
             message: failureMessage,
           },
@@ -170,7 +174,7 @@ export class VerificationService {
         likelyAgentAuthored: false,
         commentBody,
         verdict: Verdict.FAIL,
-        checkConclusion: 'failure',
+        checkConclusion: "failure",
       };
     }
   }

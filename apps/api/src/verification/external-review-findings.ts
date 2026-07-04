@@ -1,4 +1,4 @@
-import { ExternalReviewFinding, ReviewComment } from '../domain/types';
+import { ExternalReviewFinding, ReviewComment } from "../domain/types";
 
 export function extractExternalReviewFindings(
   reviewComments: ReviewComment[],

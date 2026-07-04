@@ -1,4 +1,4 @@
-import { TestImpactResult } from '../domain/types';
+import { TestImpactResult } from "../domain/types";
 
 export function suggestTestCommands(
   testImpact: TestImpactResult,
@@ -13,20 +13,22 @@ export function suggestTestCommands(
   const commands: string[] = [];
 
   if (unitTests.length > 0) {
-    if (repositoryScripts['test:unit']) {
-      commands.push(`npm run test:unit -- ${unitTests.join(' ')}`);
+    if (repositoryScripts["test:unit"]) {
+      commands.push(`npm run test:unit -- ${unitTests.join(" ")}`);
     } else if (repositoryScripts.test) {
-      commands.push(`npm test -- ${unitTests.join(' ')}`);
+      commands.push(`npm test -- ${unitTests.join(" ")}`);
     }
   }
 
   if (integrationTests.length > 0) {
-    if (repositoryScripts['test:integration']) {
-      commands.push(`npm run test:integration -- ${integrationTests.join(' ')}`);
+    if (repositoryScripts["test:integration"]) {
+      commands.push(
+        `npm run test:integration -- ${integrationTests.join(" ")}`,
+      );
     } else if (repositoryScripts.pytest) {
-      commands.push(`pytest ${integrationTests.join(' ')}`);
+      commands.push(`pytest ${integrationTests.join(" ")}`);
     } else if (repositoryScripts.test) {
-      commands.push(`npm test -- ${integrationTests.join(' ')}`);
+      commands.push(`npm test -- ${integrationTests.join(" ")}`);
     }
   }
 
@@ -35,7 +37,7 @@ export function suggestTestCommands(
     repositoryScripts.test &&
     testImpact.missingTestCoverage.length > 0
   ) {
-    commands.push('npm test');
+    commands.push("npm test");
   }
 
   return commands;

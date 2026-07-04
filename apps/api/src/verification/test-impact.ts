@@ -1,32 +1,32 @@
-import { ChangedFile, TestImpactResult } from '../domain/types';
+import { ChangedFile, TestImpactResult } from "../domain/types";
 
 const testFilePattern =
   /(^|\/)(tests?|__tests__|specs?)\/|(\.|_)(spec|test)\.(ts|tsx|js|jsx|mjs|cjs|py)$/i;
-const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
+const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"];
 
 function isTestFile(path: string): boolean {
   return testFilePattern.test(path);
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/');
+  return path.replace(/\\/g, "/");
 }
 
 function dirname(path: string): string {
   const normalized = normalizePath(path);
-  const index = normalized.lastIndexOf('/');
-  return index === -1 ? '' : normalized.slice(0, index);
+  const index = normalized.lastIndexOf("/");
+  return index === -1 ? "" : normalized.slice(0, index);
 }
 
 function basenameWithoutExtension(path: string): string {
   const normalized = normalizePath(path);
-  const name = normalized.split('/').pop() ?? normalized;
-  return name.replace(/\.[^.]+$/, '');
+  const name = normalized.split("/").pop() ?? normalized;
+  return name.replace(/\.[^.]+$/, "");
 }
 
 function readImports(path: string, content: string): string[] {
   const imports = new Set<string>();
-  if (path.endsWith('.py')) {
+  if (path.endsWith(".py")) {
     const fromRegex = /^\s*from\s+([.\w]+)\s+import\s+/gm;
     const importRegex = /^\s*import\s+([.\w]+)/gm;
     for (const regex of [fromRegex, importRegex]) {
@@ -47,19 +47,22 @@ function readImports(path: string, content: string): string[] {
 }
 
 function joinPath(baseDir: string, target: string): string {
-  const segments = [...baseDir.split('/').filter(Boolean), ...target.split('/')];
+  const segments = [
+    ...baseDir.split("/").filter(Boolean),
+    ...target.split("/"),
+  ];
   const resolved: string[] = [];
   for (const segment of segments) {
-    if (!segment || segment === '.') {
+    if (!segment || segment === ".") {
       continue;
     }
-    if (segment === '..') {
+    if (segment === "..") {
       resolved.pop();
     } else {
       resolved.push(segment);
     }
   }
-  return resolved.join('/');
+  return resolved.join("/");
 }
 
 function resolveImport(
@@ -67,7 +70,7 @@ function resolveImport(
   importPath: string,
   repositoryFiles: Record<string, string>,
 ): string | undefined {
-  if (importPath.startsWith('.')) {
+  if (importPath.startsWith(".")) {
     const base = joinPath(dirname(importer), importPath);
     const candidates = [
       base,
@@ -77,12 +80,12 @@ function resolveImport(
     return candidates.find((candidate) => candidate in repositoryFiles);
   }
 
-  if (importer.endsWith('.py')) {
-    const pyCandidate = `${importPath.replace(/\./g, '/')}.py`;
+  if (importer.endsWith(".py")) {
+    const pyCandidate = `${importPath.replace(/\./g, "/")}.py`;
     if (pyCandidate in repositoryFiles) {
       return pyCandidate;
     }
-    const initCandidate = `${importPath.replace(/\./g, '/')}/__init__.py`;
+    const initCandidate = `${importPath.replace(/\./g, "/")}/__init__.py`;
     if (initCandidate in repositoryFiles) {
       return initCandidate;
     }
@@ -96,7 +99,10 @@ export function mapImpactedTests(
   repositoryFiles: Record<string, string> = {},
 ): TestImpactResult {
   const repoFiles = Object.fromEntries(
-    Object.entries(repositoryFiles).map(([path, content]) => [normalizePath(path), content]),
+    Object.entries(repositoryFiles).map(([path, content]) => [
+      normalizePath(path),
+      content,
+    ]),
   );
   const reverseGraph = new Map<string, Set<string>>();
 
@@ -142,7 +148,10 @@ export function mapImpactedTests(
       }
     }
 
-    const stem = basenameWithoutExtension(changedPath).replace(/\.(service|controller|module)$/, '');
+    const stem = basenameWithoutExtension(changedPath).replace(
+      /\.(service|controller|module)$/,
+      "",
+    );
     for (const candidate of Object.keys(repoFiles)) {
       if (!isTestFile(candidate)) {
         continue;
@@ -159,7 +168,9 @@ export function mapImpactedTests(
     (path) => !isTestFile(path) && !/\.(md|mdx|txt)$/i.test(path),
   );
   const missingTestCoverage =
-    nonDocCodeChanges.length > 0 && impactedTests.size === 0 ? nonDocCodeChanges : [];
+    nonDocCodeChanges.length > 0 && impactedTests.size === 0
+      ? nonDocCodeChanges
+      : [];
 
   return {
     impactedTests: [...impactedTests].sort(),

@@ -1,12 +1,12 @@
-import { evaluatePolicy } from './policy-evaluator';
-import { PolicyLoader } from './policy-loader';
-import { mapImpactedTests } from './test-impact';
-import { Verdict } from '../domain/types';
+import { evaluatePolicy } from "./policy-evaluator";
+import { PolicyLoader } from "./policy-loader";
+import { mapImpactedTests } from "./test-impact";
+import { Verdict } from "../domain/types";
 import {
   safeDocsPr,
   riskyAuthPr,
   migrationPr,
-} from '../../test/fixtures/pull-request.fixtures';
+} from "../../test/fixtures/pull-request.fixtures";
 
 const policyText = `
 version: 1
@@ -59,8 +59,8 @@ function loadPolicy() {
   return new PolicyLoader().load(policyText);
 }
 
-describe('evaluatePolicy', () => {
-  it('fails auth changes without integration or e2e evidence', () => {
+describe("evaluatePolicy", () => {
+  it("fails auth changes without integration or e2e evidence", () => {
     const policy = loadPolicy();
     const testImpact = mapImpactedTests(
       riskyAuthPr.changedFiles,
@@ -77,24 +77,24 @@ describe('evaluatePolicy', () => {
     expect(result.policyFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'auth-requires-integration-test',
+          code: "auth-requires-integration-test",
           verdict: Verdict.FAIL,
         }),
       ]),
     );
   });
 
-  it('fails auth changes when only unit tests are present', () => {
+  it("fails auth changes when only unit tests are present", () => {
     const policy = loadPolicy();
     const request = {
       ...riskyAuthPr,
       changedFiles: [
         ...riskyAuthPr.changedFiles,
-        { path: 'tests/auth/session.spec.ts', additions: 20, deletions: 0 },
+        { path: "tests/auth/session.spec.ts", additions: 20, deletions: 0 },
       ],
       repositoryFiles: {
         ...riskyAuthPr.repositoryFiles,
-        'tests/auth/session.spec.ts':
+        "tests/auth/session.spec.ts":
           "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
       },
     };
@@ -113,20 +113,20 @@ describe('evaluatePolicy', () => {
     expect(result.policyFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'auth-requires-integration-test',
+          code: "auth-requires-integration-test",
           verdict: Verdict.FAIL,
         }),
       ]),
     );
   });
 
-  it('accepts migration docs evidence without a rollback test', () => {
+  it("accepts migration docs evidence without a rollback test", () => {
     const policy = loadPolicy();
     const request = {
       ...migrationPr,
       changedFiles: [
         ...migrationPr.changedFiles,
-        { path: 'docs/rollback.md', additions: 5, deletions: 0 },
+        { path: "docs/rollback.md", additions: 5, deletions: 0 },
       ],
     };
     const testImpact = mapImpactedTests(
@@ -142,21 +142,26 @@ describe('evaluatePolicy', () => {
     );
 
     expect(result.policyFailures.map((failure) => failure.code)).not.toContain(
-      'migration-requires-rollback-evidence',
+      "migration-requires-rollback-evidence",
     );
   });
 
-  it('accepts migration rollback test evidence without docs', () => {
+  it("accepts migration rollback test evidence without docs", () => {
     const policy = loadPolicy();
     const request = {
       ...migrationPr,
       changedFiles: [
         ...migrationPr.changedFiles,
-        { path: 'tests/rollback/migration.rollback.test.ts', additions: 20, deletions: 0 },
+        {
+          path: "tests/rollback/migration.rollback.test.ts",
+          additions: 20,
+          deletions: 0,
+        },
       ],
       repositoryFiles: {
         ...migrationPr.repositoryFiles,
-        'tests/rollback/migration.rollback.test.ts': 'describe("rollback", () => {});',
+        "tests/rollback/migration.rollback.test.ts":
+          'describe("rollback", () => {});',
       },
     };
     const testImpact = mapImpactedTests(
@@ -172,17 +177,19 @@ describe('evaluatePolicy', () => {
     );
 
     expect(result.policyFailures.map((failure) => failure.code)).not.toContain(
-      'migration-requires-rollback-evidence',
+      "migration-requires-rollback-evidence",
     );
   });
 
-  it('fails env changes without docs updates', () => {
+  it("fails env changes without docs updates", () => {
     const policy = loadPolicy();
     const request = {
       ...safeDocsPr,
-      changedFiles: [{ path: 'src/config/settings.ts', additions: 14, deletions: 3 }],
+      changedFiles: [
+        { path: "src/config/settings.ts", additions: 14, deletions: 3 },
+      ],
       repositoryFiles: {
-        'src/config/settings.ts': 'export const settings = {};',
+        "src/config/settings.ts": "export const settings = {};",
       },
     };
     const testImpact = mapImpactedTests(
@@ -200,20 +207,22 @@ describe('evaluatePolicy', () => {
     expect(result.policyFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'env-requires-docs',
+          code: "env-requires-docs",
           verdict: Verdict.FAIL,
         }),
       ]),
     );
   });
 
-  it('requires human review for payment changes', () => {
+  it("requires human review for payment changes", () => {
     const policy = loadPolicy();
     const request = {
       ...safeDocsPr,
-      changedFiles: [{ path: 'src/payment/checkout.ts', additions: 24, deletions: 4 }],
+      changedFiles: [
+        { path: "src/payment/checkout.ts", additions: 24, deletions: 4 },
+      ],
       repositoryFiles: {
-        'src/payment/checkout.ts': 'export const charge = () => true;',
+        "src/payment/checkout.ts": "export const charge = () => true;",
       },
     };
     const testImpact = mapImpactedTests(
@@ -231,20 +240,20 @@ describe('evaluatePolicy', () => {
     expect(result.policyFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'payment-requires-human-review',
+          code: "payment-requires-human-review",
           verdict: Verdict.NEEDS_REVIEW,
         }),
       ]),
     );
   });
 
-  it('does nothing for nonmatching rules', () => {
+  it("does nothing for nonmatching rules", () => {
     const policy = loadPolicy();
     const request = {
       ...safeDocsPr,
-      changedFiles: [{ path: 'src/ui/button.ts', additions: 8, deletions: 2 }],
+      changedFiles: [{ path: "src/ui/button.ts", additions: 8, deletions: 2 }],
       repositoryFiles: {
-        'src/ui/button.ts': 'export const button = true;',
+        "src/ui/button.ts": "export const button = true;",
       },
     };
     const testImpact = mapImpactedTests(
