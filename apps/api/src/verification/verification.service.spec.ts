@@ -1,14 +1,15 @@
 import { VerificationService } from "./verification.service";
-import { PolicyConfigError, PolicyLoader } from "./policy-loader";
+import { PolicyLoader } from "./policy-loader";
 import { Verdict } from "../domain/types";
 import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
 
 describe("VerificationService", () => {
-  it("does not return policy-config-invalid for the checked-in policy file", () => {
+  it("uses the default policy when the repository has no policy file", () => {
     const service = new VerificationService(new PolicyLoader());
 
     const result = service.verify({
       ...safeDocsPr,
+      policyText: undefined,
     });
 
     expect(result.policyFailures.map((failure) => failure.code)).not.toContain(
@@ -17,14 +18,7 @@ describe("VerificationService", () => {
   });
 
   it("fails safely when the policy config is invalid", () => {
-    const policyLoader = {
-      load: () => {
-        throw new PolicyConfigError(
-          "Invalid policy config: version must be 1.",
-        );
-      },
-    } as unknown as PolicyLoader;
-    const service = new VerificationService(policyLoader);
+    const service = new VerificationService(new PolicyLoader());
 
     const result = service.verify({
       ...safeDocsPr,
