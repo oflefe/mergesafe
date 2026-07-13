@@ -14,11 +14,6 @@ export class PolicyConfigError extends Error {
   }
 }
 
-export interface LoadedVerificationPolicy {
-  policy: VerificationPolicy;
-  source: "default" | "repository";
-}
-
 const defaultPolicy: VerificationPolicy = {
   version: 1,
   rules: [],
@@ -180,12 +175,8 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
 @Injectable()
 export class PolicyLoader {
   load(policyText?: string): VerificationPolicy {
-    return this.loadWithSource(policyText).policy;
-  }
-
-  loadWithSource(policyText?: string): LoadedVerificationPolicy {
     if (policyText === undefined || policyText.trim().length === 0) {
-      return { policy: defaultPolicy, source: "default" };
+      return defaultPolicy;
     }
 
     const parsed = parse(policyText);
@@ -208,16 +199,13 @@ export class PolicyLoader {
     }
 
     return {
-      source: "repository",
-      policy: {
-        version: 1,
-        rules: rulesValue.map((rule, index) => validateRule(rule, index)),
-        heuristics: {
-          branchIndicators: defaultPolicy.heuristics.branchIndicators,
-        },
-        riskWeights: {
-          ...defaultPolicy.riskWeights,
-        },
+      version: 1,
+      rules: rulesValue.map((rule, index) => validateRule(rule, index)),
+      heuristics: {
+        branchIndicators: defaultPolicy.heuristics.branchIndicators,
+      },
+      riskWeights: {
+        ...defaultPolicy.riskWeights,
       },
     };
   }

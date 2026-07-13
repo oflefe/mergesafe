@@ -15,10 +15,6 @@ describe("PolicyLoader", () => {
     );
   });
 
-  it("GIVEN no repository policy WHEN loading with source THEN it reports default", () => {
-    expect(new PolicyLoader().loadWithSource(undefined).source).toBe("default");
-  });
-
   it("returns the default policy for whitespace-only repository policy content", () => {
     const policy = new PolicyLoader().load(" \n\t ");
 
@@ -34,15 +30,6 @@ describe("PolicyLoader", () => {
 
     expect(policy.version).toBe(1);
     expect(policy.rules.length).toBeGreaterThan(0);
-  });
-
-  it("GIVEN valid repository policy text WHEN loading with source THEN it reports repository", () => {
-    const loaded = new PolicyLoader().loadWithSource(
-      "version: 1\nrules: []\n",
-    );
-
-    expect(loaded.source).toBe("repository");
-    expect(loaded.policy.rules).toEqual([]);
   });
 
   it("rejects invalid repository policy content", () => {
