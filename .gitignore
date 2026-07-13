@@ -7,4 +7,3 @@ coverage
 *.tsbuildinfo
 .opencode
 .env
-graphify-out

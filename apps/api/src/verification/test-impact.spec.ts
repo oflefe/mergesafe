@@ -124,6 +124,109 @@ describe("mapImpactedTests", () => {
     });
   });
 
+  it("GIVEN a test is nested below the source directory WHEN mapping tests THEN it records nearby", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.ts" }],
+      {
+        "src/billing/invoice.ts": "export const invoice = true;",
+        "src/billing/fixtures/random.spec.ts":
+          "describe('random', () => {});",
+      },
+    );
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/billing/invoice.ts",
+      matchedTests: ["src/billing/fixtures/random.spec.ts"],
+      matchReasons: ["nearby"],
+    });
+  });
+
+  it("GIVEN a similarly named directory WHEN mapping tests THEN it does not record nearby", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.ts" }],
+      {
+        "src/billing/invoice.ts": "export const invoice = true;",
+        "src/billing-v2/random.spec.ts": "describe('random', () => {});",
+      },
+    );
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/billing/invoice.ts",
+      matchedTests: [],
+      matchReasons: [],
+    });
+  });
+
+  it("GIVEN a root-level source file WHEN mapping tests THEN it does not match every test", () => {
+    const result = mapImpactedTests(
+      [{ path: "app.ts" }],
+      {
+        "app.ts": "export const app = true;",
+        "tests/other.spec.ts": "describe('other', () => {});",
+      },
+    );
+
+    expect(result.missingTestCoverage).toEqual(["app.ts"]);
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "app.ts",
+      matchedTests: [],
+      matchReasons: [],
+    });
+  });
+
+  it("GIVEN a short source stem WHEN mapping tests THEN it does not match unrelated stems", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/a.ts" }],
+      {
+        "src/a.ts": "export const a = true;",
+        "tests/payment-data.spec.ts": "describe('payment', () => {});",
+      },
+    );
+
+    expect(result.missingTestCoverage).toEqual(["src/a.ts"]);
+  });
+
+  it("GIVEN a source stem contained in another stem WHEN mapping tests THEN it does not match the larger stem", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/user.ts" }],
+      {
+        "src/user.ts": "export const user = true;",
+        "tests/superuser.spec.ts": "describe('superuser', () => {});",
+      },
+    );
+
+    expect(result.missingTestCoverage).toEqual(["src/user.ts"]);
+  });
+
+  it("GIVEN service source and plain test stems WHEN mapping tests THEN it records same-stem", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.service.ts" }],
+      {
+        "src/billing/invoice.service.ts": "export const invoice = true;",
+        "tests/invoice.spec.ts": "describe('invoice', () => {});",
+      },
+    );
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/billing/invoice.service.ts",
+      matchedTests: ["tests/invoice.spec.ts"],
+      matchReasons: ["same-stem"],
+    });
+  });
+
+  it("GIVEN only false nearby or same-stem candidates WHEN mapping tests THEN it preserves missing coverage", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.ts" }],
+      {
+        "src/billing/invoice.ts": "export const invoice = true;",
+        "src/billing-v2/invoice-history.spec.ts":
+          "describe('invoice history', () => {});",
+      },
+    );
+
+    expect(result.missingTestCoverage).toEqual(["src/billing/invoice.ts"]);
+  });
+
   it("GIVEN one test matches through multiple mechanisms WHEN mapping tests THEN paths and reasons are deduplicated and sorted", () => {
     const result = mapImpactedTests(
       [{ path: "src/auth/session.ts" }],

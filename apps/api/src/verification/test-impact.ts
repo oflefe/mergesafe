@@ -34,6 +34,14 @@ function basenameWithoutExtension(path: string): string {
   return name.replace(/\.[^.]+$/, "");
 }
 
+function normalizeTestStem(path: string): string {
+  return basenameWithoutExtension(path)
+    .toLowerCase()
+    .replace(/^test[._-]/, "")
+    .replace(/(?:[._-](?:spec|test))+$/, "")
+    .replace(/(?:[._-](?:service|controller|module))+$/, "");
+}
+
 function readImports(path: string, content: string): string[] {
   const imports = new Set<string>();
   if (path.endsWith(".py")) {
@@ -144,10 +152,8 @@ function buildTestMapping(
     }
   }
 
-  const sourceStem = basenameWithoutExtension(sourceFile).replace(
-    /\.(service|controller|module)$/,
-    "",
-  );
+  const sourceDirectory = dirname(sourceFile).toLowerCase();
+  const sourceStem = normalizeTestStem(sourceFile);
   const testCandidates = [
     ...new Set([
       ...Object.keys(repositoryFiles),
@@ -157,8 +163,12 @@ function buildTestMapping(
     .filter((candidate) => isTestFile(candidate))
     .sort();
   for (const candidate of testCandidates) {
-    const sameStem = basenameWithoutExtension(candidate).includes(sourceStem);
-    const nearby = dirname(candidate).includes(dirname(sourceFile));
+    const candidateDirectory = dirname(candidate).toLowerCase();
+    const sameStem = normalizeTestStem(candidate) === sourceStem;
+    const nearby =
+      sourceDirectory.length > 0 &&
+      (candidateDirectory === sourceDirectory ||
+        candidateDirectory.startsWith(`${sourceDirectory}/`));
     if (sameStem) {
       addMatchReason(matches, candidate, "same-stem");
     }
