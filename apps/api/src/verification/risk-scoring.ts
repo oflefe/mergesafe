@@ -2,7 +2,6 @@ import {
   ChangedFile,
   RiskLevel,
   RiskFinding,
-  RiskSignalEvaluation,
   TestImpactResult,
   VerificationPolicy,
   VerificationRequest,
@@ -164,20 +163,6 @@ function hasExcessiveMocks(files: ChangedFile[]): boolean {
   return mockCount >= 8;
 }
 
-interface SignalObservation {
-  triggered: boolean;
-  observedValue?: string | number | boolean;
-  threshold?: string | number;
-}
-
-interface RiskSignalDefinition {
-  code: string;
-  weightKey: string;
-  reason: string;
-  fallbackWeight?: number;
-  evaluate: () => SignalObservation;
-}
-
 export function scoreRisk(
   request: VerificationRequest,
   policy: VerificationPolicy,
@@ -186,10 +171,10 @@ export function scoreRisk(
   riskScore: number;
   riskLevel: RiskLevel;
   riskFindings: RiskFinding[];
-  evaluatedSignals: RiskSignalEvaluation[];
   likelyAgentAuthored: boolean;
   uncategorizedFiles: string[];
 } {
+  const findings: RiskFinding[] = [];
   const files = request.changedFiles;
   const docsOnly =
     files.length > 0 && files.every((file) => isDocsFile(file.path));
@@ -208,131 +193,93 @@ export function scoreRisk(
 
   const likelyAgentAuthored =
     strongAuthorSignal || strongBranchSignal || weakSignals >= 2;
+  if (likelyAgentAuthored && !docsOnly) {
+    findings.push({
+      code: "agent-authored",
+      weight: weight("agentAuthored"),
+      reason:
+        "Branch, body, or commit metadata strongly suggests agent-authored changes.",
+    });
+  }
+
+  if (!docsOnly) {
+    for (const [code, pattern, reason] of riskCategories) {
+      if (hasPattern(files, pattern)) {
+        findings.push({ code, weight: weight(code), reason });
+      }
+    }
+  }
+
   const totalLineDelta = files.reduce(
     (sum, file) => sum + (file.additions ?? 0) + (file.deletions ?? 0),
     0,
   );
+  if (!docsOnly && (files.length >= 12 || totalLineDelta >= 700)) {
+    findings.push({
+      code: "large-pr",
+      weight: weight("largePr"),
+      reason:
+        "The PR is broad, which makes safe review and verification harder.",
+    });
+  }
+
   const generatedText = files.some(
     (file) =>
       /(generated|auto-generated|do not edit)/i.test(file.content ?? "") ||
       /(generated|auto-generated|do not edit)/i.test(file.patch ?? ""),
   );
+  if (!docsOnly && generatedText) {
+    findings.push({
+      code: "generated-text",
+      weight: weight("generatedText"),
+      reason: "Generated-looking code or prose was detected in the diff.",
+    });
+  }
+
+  if (!docsOnly && testImpact.missingTestCoverage.length > 0) {
+    findings.push({
+      code: "missing-tests",
+      weight: weight("missingTests"),
+      reason:
+        "No nearby tests were changed or mapped for risky source changes.",
+    });
+  }
+
+  if (!docsOnly && hasDeletedTests(files)) {
+    findings.push({
+      code: "deleted-tests",
+      weight: weight("deletedTests"),
+      reason: "Deleted test files were detected in this pull request.",
+    });
+  }
+
+  if (!docsOnly && hasSkippedTests(files)) {
+    findings.push({
+      code: "skipped-tests",
+      weight: weight("skippedTests"),
+      reason: "Skipped tests were introduced in patch changes.",
+    });
+  }
+
+  if (!docsOnly && hasExcessiveMocks(files)) {
+    findings.push({
+      code: "excessive-mocks",
+      weight: weight("excessiveMocks"),
+      reason: "Heavy mocking usage was detected in added patch lines.",
+    });
+  }
+
   const truncatedEvidence =
     request.evidenceFindings?.filter((finding) =>
       finding.startsWith("repository-context-truncated:"),
     ) ?? [];
-  const signalDefinitions: RiskSignalDefinition[] = [
-    {
-      code: "agent-authored",
-      weightKey: "agentAuthored",
-      reason:
-        "Branch, body, or commit metadata strongly suggests agent-authored changes.",
-      evaluate: () => ({
-        triggered: !docsOnly && likelyAgentAuthored,
-        observedValue: likelyAgentAuthored,
-      }),
-    },
-    ...riskCategories.map(([code, pattern, reason]) => ({
-      code,
-      weightKey: code,
-      reason,
-      evaluate: (): SignalObservation => ({
-        triggered: !docsOnly && hasPattern(files, pattern),
-        observedValue: files.filter((file) => pattern.test(file.path)).length,
-      }),
-    })),
-    {
-      code: "large-pr",
-      weightKey: "largePr",
-      reason:
-        "The PR is broad, which makes safe review and verification harder.",
-      evaluate: () => ({
-        triggered: !docsOnly && (files.length >= 12 || totalLineDelta >= 700),
-        observedValue: `${files.length} files, ${totalLineDelta} changed lines`,
-        threshold: "12 files or 700 changed lines",
-      }),
-    },
-    {
-      code: "generated-text",
-      weightKey: "generatedText",
-      reason: "Generated-looking code or prose was detected in the diff.",
-      evaluate: () => ({
-        triggered: !docsOnly && generatedText,
-        observedValue: generatedText,
-      }),
-    },
-    {
-      code: "missing-tests",
-      weightKey: "missingTests",
-      reason:
-        "No nearby tests were changed or mapped for risky source changes.",
-      evaluate: () => ({
-        triggered: !docsOnly && testImpact.missingTestCoverage.length > 0,
-        observedValue: testImpact.missingTestCoverage.length,
-        threshold: 0,
-      }),
-    },
-    {
-      code: "deleted-tests",
-      weightKey: "deletedTests",
-      reason: "Deleted test files were detected in this pull request.",
-      evaluate: () => ({
-        triggered: !docsOnly && hasDeletedTests(files),
-      }),
-    },
-    {
-      code: "skipped-tests",
-      weightKey: "skippedTests",
-      reason: "Skipped tests were introduced in patch changes.",
-      evaluate: () => ({
-        triggered: !docsOnly && hasSkippedTests(files),
-      }),
-    },
-    {
-      code: "excessive-mocks",
-      weightKey: "excessiveMocks",
-      reason: "Heavy mocking usage was detected in added patch lines.",
-      evaluate: () => ({
-        triggered: !docsOnly && hasExcessiveMocks(files),
-      }),
-    },
-    {
+  if (!docsOnly && truncatedEvidence.length > 0) {
+    findings.push({
       code: "evidence-truncated",
-      weightKey: "evidenceTruncated",
-      fallbackWeight: 5,
+      weight: weight("evidenceTruncated") || 5,
       reason: `Repository context fetch was truncated (${truncatedEvidence.join(", ")}).`,
-      evaluate: () => ({
-        triggered: !docsOnly && truncatedEvidence.length > 0,
-        observedValue: truncatedEvidence.length,
-        threshold: 0,
-      }),
-    },
-  ];
-
-  const evaluatedSignals = signalDefinitions.map(
-    (definition): RiskSignalEvaluation => {
-      const observation = definition.evaluate();
-      return {
-        code: definition.code,
-        triggered: observation.triggered,
-        weight: weight(definition.weightKey) || definition.fallbackWeight || 0,
-        reason: definition.reason,
-        ...(observation.observedValue === undefined
-          ? {}
-          : { observedValue: observation.observedValue }),
-        ...(observation.threshold === undefined
-          ? {}
-          : { threshold: observation.threshold }),
-      };
-    },
-  );
-  const findings = evaluatedSignals
-    .filter((signal) => signal.triggered)
-    .map(({ code, weight: signalWeight, reason }) => ({
-      code,
-      weight: signalWeight,
-      reason,
-    }));
+    });
+  }
 
   const riskScore = Math.min(
     100,
@@ -345,7 +292,6 @@ export function scoreRisk(
     riskScore: normalizedRiskScore,
     riskLevel: calculateRiskLevel(normalizedRiskScore),
     riskFindings: findings,
-    evaluatedSignals,
     likelyAgentAuthored,
     uncategorizedFiles: docsOnly ? [] : findUncategorizedFiles(files),
   };
