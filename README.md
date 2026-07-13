@@ -190,39 +190,42 @@ PR_NUMBER=2787
 ```bash
 PR_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
   "https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER")
-
-HEAD_SHA=$(echo "$PR_DATA" | jq -r .head.sha)
-HEAD_REF=$(echo "$PR_DATA" | jq -r .head.ref)
-BASE_REF=$(echo "$PR_DATA" | jq -r .base.ref)
-PR_TITLE=$(echo "$PR_DATA" | jq -r .title)
-PR_BODY=$(echo "$PR_DATA" | jq -r .body)
-PR_USER=$(echo "$PR_DATA" | jq -r .user.login)
-PR_ID=$(echo "$PR_DATA" | jq -r .id)
 ```
 
 3. Send a simulated webhook payload to the local endpoint.
 
 ```bash
+echo "$PR_DATA" | jq '{
+  action: "opened",
+  pull_request: {
+    number: .number,
+    id: .id,
+    title: .title,
+    body: .body,
+    user: {
+      login: .user.login
+    },
+    head: {
+      ref: .head.ref,
+      sha: .head.sha
+    },
+    base: {
+      ref: .base.ref
+    }
+  },
+  repository: {
+    owner: {
+      login: .base.repo.owner.login
+    },
+    name: .base.repo.name,
+    full_name: .base.repo.full_name
+  }
+}' > /tmp/pr-webhook.json
+
 curl -s -X POST http://localhost:3001/webhooks/github \
   -H "Content-Type: application/json" \
   -H "x-github-event: pull_request" \
-  -d "{
-    \"action\": \"opened\",
-    \"pull_request\": {
-      \"number\": $PR_NUMBER,
-      \"id\": $PR_ID,
-      \"title\": $(echo "$PR_TITLE" | jq -Rs .),
-      \"body\": $(echo "$PR_BODY" | jq -Rs .),
-      \"user\": { \"login\": $(echo "$PR_USER" | jq -Rs .) },
-      \"head\": { \"ref\": $(echo "$HEAD_REF" | jq -Rs .), \"sha\": \"$HEAD_SHA\" },
-      \"base\": { \"ref\": $(echo "$BASE_REF" | jq -Rs .) }
-    },
-    \"repository\": {
-      \"owner\": { \"login\": \"$OWNER\" },
-      \"name\": \"$REPO\",
-      \"full_name\": \"$OWNER/$REPO\"
-    }
-  }"
+  --data-binary @/tmp/pr-webhook.json
 ```
 
 4. The endpoint returns `202` with:
