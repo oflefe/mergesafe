@@ -33,4 +33,136 @@ describe("mapImpactedTests", () => {
 
     expect(missing.missingTestCoverage).toEqual(["src/app/payments.py"]);
   });
+
+  it("GIVEN multiple changed sources WHEN only one maps to a test THEN only uncovered sources are reported", () => {
+    const result = mapImpactedTests(
+      [
+        { path: "src/patient.service.py" },
+        { path: "src/billing_handler.py" },
+      ],
+      {
+        "src/patient.service.py": "def patient():\n    return True\n",
+        "src/billing_handler.py": "def billing():\n    return True\n",
+        "tests/test_patient_service.py": "def test_patient():\n    assert True\n",
+      },
+    );
+
+    expect(result.missingTestCoverage).toEqual(["src/billing_handler.py"]);
+    expect(result.testMappings).toEqual([
+      {
+        sourceFile: "src/billing_handler.py",
+        matchedTests: [],
+        matchReasons: [],
+      },
+      {
+        sourceFile: "src/patient.service.py",
+        matchedTests: ["tests/test_patient_service.py"],
+        matchReasons: ["same-stem"],
+      },
+    ]);
+  });
+
+  it("GIVEN a test directly imports a changed source WHEN mapping tests THEN it records direct dependency", () => {
+    const result = mapImpactedTests([{ path: "src/auth/session.ts" }], {
+      "src/auth/session.ts": "export const session = true;",
+      "test/guard.spec.ts":
+        "import { session } from '../src/auth/session';\ndescribe('guard', () => {});",
+    });
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/auth/session.ts",
+      matchedTests: ["test/guard.spec.ts"],
+      matchReasons: ["direct-dependent"],
+    });
+  });
+
+  it("GIVEN a test reaches a changed source through an intermediate import WHEN mapping tests THEN it records transitive dependency", () => {
+    const result = mapImpactedTests([{ path: "src/core/service.ts" }], {
+      "src/core/service.ts": "export const service = true;",
+      "src/core/index.ts":
+        "import { service } from './service';\nexport { service };",
+      "test/behavior.spec.ts":
+        "import { service } from '../src/core/index';\ndescribe('behavior', () => {});",
+    });
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/core/service.ts",
+      matchedTests: ["test/behavior.spec.ts"],
+      matchReasons: ["transitive-dependent"],
+    });
+  });
+
+  it("GIVEN a test shares a source filename stem WHEN mapping tests THEN it records same-stem", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.service.ts" }],
+      {
+        "src/billing/invoice.service.ts": "export const invoice = true;",
+        "tests/billing/invoice.spec.ts": "describe('invoice', () => {});",
+      },
+    );
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/billing/invoice.service.ts",
+      matchedTests: ["tests/billing/invoice.spec.ts"],
+      matchReasons: ["same-stem"],
+    });
+  });
+
+  it("GIVEN a test is in the source directory WHEN mapping tests THEN it records nearby", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/billing/invoice.service.ts" }],
+      {
+        "src/billing/invoice.service.ts": "export const invoice = true;",
+        "src/billing/coverage_test.ts": "describe('coverage', () => {});",
+      },
+    );
+
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/billing/invoice.service.ts",
+      matchedTests: ["src/billing/coverage_test.ts"],
+      matchReasons: ["nearby"],
+    });
+  });
+
+  it("GIVEN one test matches through multiple mechanisms WHEN mapping tests THEN paths and reasons are deduplicated and sorted", () => {
+    const result = mapImpactedTests(
+      [{ path: "src/auth/session.ts" }],
+      {
+        "src/auth/session.ts": "export const session = true;",
+        "src/auth/session.spec.ts":
+          "import { session } from './session';\ndescribe('session', () => {});",
+      },
+    );
+
+    expect(result.impactedTests).toEqual(["src/auth/session.spec.ts"]);
+    expect(result.testMappings).toContainEqual({
+      sourceFile: "src/auth/session.ts",
+      matchedTests: ["src/auth/session.spec.ts"],
+      matchReasons: ["direct-dependent", "nearby", "same-stem"],
+    });
+  });
+
+  it("GIVEN a changed test file WHEN calculating impact THEN it is impacted but not missing coverage", () => {
+    const result = mapImpactedTests([{ path: "tests/session.spec.ts" }]);
+
+    expect(result.impactedTests).toEqual(["tests/session.spec.ts"]);
+    expect(result.missingTestCoverage).toEqual([]);
+    expect(result.testMappings).toEqual([
+      {
+        sourceFile: "tests/session.spec.ts",
+        matchedTests: ["tests/session.spec.ts"],
+        matchReasons: ["changed-test"],
+      },
+    ]);
+  });
+
+  it("GIVEN documentation-only changes WHEN calculating impact THEN no missing test evidence is reported", () => {
+    const result = mapImpactedTests([
+      { path: "README.md" },
+      { path: "docs/verification.txt" },
+    ]);
+
+    expect(result.missingTestCoverage).toEqual([]);
+    expect(result.testMappings).toEqual([]);
+  });
 });

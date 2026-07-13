@@ -10,6 +10,17 @@ function list(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
+function listWithLimit(items: string[], limit = 10): string {
+  const visibleItems = items.slice(0, limit);
+  const omittedCount = items.length - visibleItems.length;
+  return [
+    list(visibleItems),
+    ...(omittedCount > 0
+      ? [`- ${omittedCount} additional entries omitted.`]
+      : []),
+  ].join("\n");
+}
+
 function verdictLabel(verdict: Verdict): string {
   if (verdict === Verdict.PASS) {
     return "Ready for merge with standard review";
@@ -28,6 +39,7 @@ export function renderVerificationReport(input: {
   verificationRequirements: VerificationRequirement[];
   suggestedCommands: string[];
   missingTests: string[];
+  uncategorizedFiles: string[];
   externalReviewFindings: ExternalReviewFinding[];
   ciSummary: string;
 }): string {
@@ -60,10 +72,15 @@ export function renderVerificationReport(input: {
       ? list(input.suggestedCommands)
       : "- No test command could be inferred.",
     "",
-    "### Missing tests",
+    "### Missing test evidence",
     input.missingTests.length > 0
-      ? list(input.missingTests)
+      ? listWithLimit(input.missingTests)
       : "- No obvious missing tests detected.",
+    "",
+    "### Uncategorized changed files (informational)",
+    input.uncategorizedFiles.length > 0
+      ? listWithLimit(input.uncategorizedFiles)
+      : "- No uncategorized changed files detected.",
     "",
     "### Existing AI-review findings",
     input.externalReviewFindings.length > 0

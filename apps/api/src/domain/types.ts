@@ -76,6 +76,23 @@ export interface RiskFinding {
   reason: string;
 }
 
+export interface RiskDiagnostics {
+  uncategorizedFiles: string[];
+}
+
+export type TestMatchReason =
+  | "changed-test"
+  | "direct-dependent"
+  | "transitive-dependent"
+  | "same-stem"
+  | "nearby";
+
+export interface TestFileMapping {
+  sourceFile: string;
+  matchedTests: string[];
+  matchReasons: TestMatchReason[];
+}
+
 export interface ExternalReviewFinding {
   source: string;
   author: string;
@@ -86,6 +103,7 @@ export interface TestImpactResult {
   impactedTests: string[];
   missingTestCoverage: string[];
   suggestedCommands: string[];
+  testMappings: TestFileMapping[];
 }
 
 export interface PolicyFailure {
@@ -131,6 +149,7 @@ export interface VerificationResult {
   riskScore: number;
   riskLevel: RiskLevel;
   riskFindings: RiskFinding[];
+  riskDiagnostics: RiskDiagnostics;
   testImpact: TestImpactResult;
   policyFailures: PolicyFailure[];
   verificationRequirements: VerificationRequirement[];

@@ -15,6 +15,62 @@ function hasPattern(files: ChangedFile[], pattern: RegExp): boolean {
   return files.some((file) => pattern.test(file.path));
 }
 
+const riskCategories: Array<[string, RegExp, string]> = [
+  [
+    "auth",
+    /(auth|session|permission|rbac|acl)/i,
+    "Auth, session, or permission paths changed.",
+  ],
+  [
+    "payment",
+    /(payment|billing|invoice|checkout|subscription)/i,
+    "Payment or billing paths changed.",
+  ],
+  [
+    "migration",
+    /(migration|migrations|schema\.sql|prisma\/migrations)/i,
+    "Database migration files changed.",
+  ],
+  [
+    "env",
+    /(^|\/)(\.env|config|secrets?|settings|terraform\.tfvars)/i,
+    "Configuration or secret-sensitive files changed.",
+  ],
+  [
+    "dependencyLockfile",
+    /(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|poetry\.lock|requirements\.txt|package\.json)/i,
+    "Dependency manifest or lockfile changed.",
+  ],
+  [
+    "infrastructure",
+    /(docker-compose|terraform|helm|k8s|kubectl|ansible|infra|\.github\/workflows)/i,
+    "Infrastructure or automation files changed.",
+  ],
+  [
+    "apiContract",
+    /(openapi|swagger|graphql|schema|controller|routes?)/i,
+    "API contract or transport layer files changed.",
+  ],
+];
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+function findUncategorizedFiles(files: ChangedFile[]): string[] {
+  return [
+    ...new Set(
+      files
+        .map((file) => normalizePath(file.path))
+        .filter(
+          (path) =>
+            !isDocsFile(path) &&
+            !riskCategories.some(([, pattern]) => pattern.test(path)),
+        ),
+    ),
+  ].sort();
+}
+
 function tokenize(value: string): string[] {
   return value
     .toLowerCase()
@@ -116,6 +172,7 @@ export function scoreRisk(
   riskLevel: RiskLevel;
   riskFindings: RiskFinding[];
   likelyAgentAuthored: boolean;
+  uncategorizedFiles: string[];
 } {
   const findings: RiskFinding[] = [];
   const files = request.changedFiles;
@@ -145,46 +202,8 @@ export function scoreRisk(
     });
   }
 
-  const categories: Array<[string, RegExp, string]> = [
-    [
-      "auth",
-      /(auth|session|permission|rbac|acl)/i,
-      "Auth, session, or permission paths changed.",
-    ],
-    [
-      "payment",
-      /(payment|billing|invoice|checkout|subscription)/i,
-      "Payment or billing paths changed.",
-    ],
-    [
-      "migration",
-      /(migration|migrations|schema\.sql|prisma\/migrations)/i,
-      "Database migration files changed.",
-    ],
-    [
-      "env",
-      /(^|\/)(\.env|config|secrets?|settings|terraform\.tfvars)/i,
-      "Configuration or secret-sensitive files changed.",
-    ],
-    [
-      "dependencyLockfile",
-      /(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|poetry\.lock|requirements\.txt|package\.json)/i,
-      "Dependency manifest or lockfile changed.",
-    ],
-    [
-      "infrastructure",
-      /(docker-compose|terraform|helm|k8s|kubectl|ansible|infra|\.github\/workflows)/i,
-      "Infrastructure or automation files changed.",
-    ],
-    [
-      "apiContract",
-      /(openapi|swagger|graphql|schema|controller|routes?)/i,
-      "API contract or transport layer files changed.",
-    ],
-  ];
-
   if (!docsOnly) {
-    for (const [code, pattern, reason] of categories) {
+    for (const [code, pattern, reason] of riskCategories) {
       if (hasPattern(files, pattern)) {
         findings.push({ code, weight: weight(code), reason });
       }
@@ -274,5 +293,6 @@ export function scoreRisk(
     riskLevel: calculateRiskLevel(normalizedRiskScore),
     riskFindings: findings,
     likelyAgentAuthored,
+    uncategorizedFiles: docsOnly ? [] : findUncategorizedFiles(files),
   };
 }

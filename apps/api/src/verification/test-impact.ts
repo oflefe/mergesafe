@@ -1,4 +1,9 @@
-import { ChangedFile, TestImpactResult } from "../domain/types";
+import {
+  ChangedFile,
+  TestFileMapping,
+  TestImpactResult,
+  TestMatchReason,
+} from "../domain/types";
 
 const testFilePattern =
   /(^|\/)(tests?|__tests__|specs?)\/|(\.|_)(spec|test)\.(ts|tsx|js|jsx|mjs|cjs|py)$/i;
@@ -6,6 +11,11 @@ const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"];
 
 function isTestFile(path: string): boolean {
   return testFilePattern.test(path);
+}
+
+function isSourceFile(path: string): boolean {
+  const normalized = path.toLowerCase();
+  return sourceExtensions.some((extension) => normalized.endsWith(extension));
 }
 
 function normalizePath(path: string): string {
@@ -94,6 +104,86 @@ function resolveImport(
   return undefined;
 }
 
+function addMatchReason(
+  matches: Map<string, Set<TestMatchReason>>,
+  testPath: string,
+  reason: TestMatchReason,
+): void {
+  const reasons = matches.get(testPath) ?? new Set<TestMatchReason>();
+  reasons.add(reason);
+  matches.set(testPath, reasons);
+}
+
+function buildTestMapping(
+  sourceFile: string,
+  repositoryFiles: Record<string, string>,
+  reverseGraph: Map<string, Set<string>>,
+  testFilesChangedInPullRequest: Set<string>,
+): TestFileMapping {
+  const matches = new Map<string, Set<TestMatchReason>>();
+
+  const queue = [{ path: sourceFile, distance: 0 }];
+  const visitedNonTests = new Set<string>([sourceFile]);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const dependents = [...(reverseGraph.get(current.path) ?? [])].sort();
+    for (const dependent of dependents) {
+      const distance = current.distance + 1;
+      if (isTestFile(dependent)) {
+        addMatchReason(
+          matches,
+          dependent,
+          distance === 1 ? "direct-dependent" : "transitive-dependent",
+        );
+        continue;
+      }
+      if (!visitedNonTests.has(dependent)) {
+        visitedNonTests.add(dependent);
+        queue.push({ path: dependent, distance });
+      }
+    }
+  }
+
+  const sourceStem = basenameWithoutExtension(sourceFile).replace(
+    /\.(service|controller|module)$/,
+    "",
+  );
+  const testCandidates = [
+    ...new Set([
+      ...Object.keys(repositoryFiles),
+      ...testFilesChangedInPullRequest,
+    ]),
+  ]
+    .filter((candidate) => isTestFile(candidate))
+    .sort();
+  for (const candidate of testCandidates) {
+    const sameStem = basenameWithoutExtension(candidate).includes(sourceStem);
+    const nearby = dirname(candidate).includes(dirname(sourceFile));
+    if (sameStem) {
+      addMatchReason(matches, candidate, "same-stem");
+    }
+    if (nearby) {
+      addMatchReason(matches, candidate, "nearby");
+    }
+  }
+
+  for (const testPath of matches.keys()) {
+    if (testFilesChangedInPullRequest.has(testPath)) {
+      addMatchReason(matches, testPath, "changed-test");
+    }
+  }
+
+  return {
+    sourceFile,
+    matchedTests: [...matches.keys()].sort(),
+    matchReasons: [
+      ...new Set(
+        [...matches.values()].flatMap((reasons) => [...reasons]),
+      ),
+    ].sort(),
+  };
+}
+
 export function mapImpactedTests(
   changedFiles: ChangedFile[],
   repositoryFiles: Record<string, string> = {},
@@ -104,6 +194,12 @@ export function mapImpactedTests(
       content,
     ]),
   );
+  for (const file of changedFiles) {
+    const normalizedPath = normalizePath(file.path);
+    if (!(normalizedPath in repoFiles) && file.content !== undefined) {
+      repoFiles[normalizedPath] = file.content;
+    }
+  }
   const reverseGraph = new Map<string, Set<string>>();
 
   for (const [path, content] of Object.entries(repoFiles)) {
@@ -118,63 +214,51 @@ export function mapImpactedTests(
     }
   }
 
-  const changedPaths = changedFiles.map((file) => normalizePath(file.path));
-  const impactedTests = new Set<string>();
-
-  for (const changedPath of changedPaths) {
-    if (isTestFile(changedPath)) {
-      impactedTests.add(changedPath);
-      continue;
-    }
-
-    const queue = [changedPath];
-    const visited = new Set<string>();
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (visited.has(current)) {
-        continue;
-      }
-      visited.add(current);
-      const dependents = reverseGraph.get(current);
-      if (!dependents) {
-        continue;
-      }
-      for (const dependent of dependents) {
-        if (isTestFile(dependent)) {
-          impactedTests.add(dependent);
-        } else {
-          queue.push(dependent);
-        }
-      }
-    }
-
-    const stem = basenameWithoutExtension(changedPath).replace(
-      /\.(service|controller|module)$/,
-      "",
-    );
-    for (const candidate of Object.keys(repoFiles)) {
-      if (!isTestFile(candidate)) {
-        continue;
-      }
-      const sameStem = basenameWithoutExtension(candidate).includes(stem);
-      const nearby = dirname(candidate).includes(dirname(changedPath));
-      if (sameStem || nearby) {
-        impactedTests.add(candidate);
-      }
-    }
-  }
-
-  const nonDocCodeChanges = changedPaths.filter(
-    (path) => !isTestFile(path) && !/\.(md|mdx|txt)$/i.test(path),
+  const changedPaths = [
+    ...new Set(changedFiles.map((file) => normalizePath(file.path))),
+  ].sort();
+  const testFilesChangedInPullRequest = new Set(
+    changedPaths.filter((path) => isTestFile(path)),
   );
-  const missingTestCoverage =
-    nonDocCodeChanges.length > 0 && impactedTests.size === 0
-      ? nonDocCodeChanges
-      : [];
+  const changedSourceFiles = changedPaths.filter(
+    (path) => isSourceFile(path) && !isTestFile(path),
+  );
+  const sourceMappings = changedSourceFiles.map((sourceFile) =>
+    buildTestMapping(
+      sourceFile,
+      repoFiles,
+      reverseGraph,
+      testFilesChangedInPullRequest,
+    ),
+  );
+  const changedTestMappings: TestFileMapping[] = [
+    ...testFilesChangedInPullRequest,
+  ]
+    .filter((path) => isSourceFile(path))
+    .map((sourceFile) => ({
+      sourceFile,
+      matchedTests: [sourceFile],
+      matchReasons: ["changed-test"],
+    }));
+  const testMappings = [...sourceMappings, ...changedTestMappings].sort(
+    (left, right) =>
+      left.sourceFile === right.sourceFile
+        ? 0
+        : left.sourceFile < right.sourceFile
+          ? -1
+          : 1,
+  );
+  const impactedTests = [
+    ...new Set(testMappings.flatMap((mapping) => mapping.matchedTests)),
+  ].sort();
+  const missingTestCoverage = sourceMappings
+    .filter((mapping) => mapping.matchedTests.length === 0)
+    .map((mapping) => mapping.sourceFile);
 
   return {
-    impactedTests: [...impactedTests].sort(),
+    impactedTests,
     missingTestCoverage,
     suggestedCommands: [],
+    testMappings,
   };
 }

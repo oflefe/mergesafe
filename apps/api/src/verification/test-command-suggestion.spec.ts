@@ -10,6 +10,7 @@ describe("suggestTestCommands", () => {
         ],
         missingTestCoverage: [],
         suggestedCommands: [],
+        testMappings: [],
       },
       {
         test: "jest",
@@ -32,6 +33,7 @@ describe("suggestTestCommands", () => {
         impactedTests: [],
         missingTestCoverage: ["src/auth/session.ts"],
         suggestedCommands: [],
+        testMappings: [],
       },
       { test: "jest" },
     );
