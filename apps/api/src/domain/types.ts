@@ -1,3 +1,5 @@
+import type { PullRequestScopeMetrics } from "../verification/scope-analysis";
+
 export type CheckConclusion =
   | "success"
   | "failure"
@@ -80,6 +82,58 @@ export interface RiskDiagnostics {
   uncategorizedFiles: string[];
 }
 
+export interface RiskSignalEvaluation {
+  code: string;
+  triggered: boolean;
+  weight: number;
+  reason: string;
+  observedValue?: string | number | boolean;
+  threshold?: string | number;
+}
+
+export interface RiskDecisionTrace {
+  score: number;
+  level: RiskLevel;
+  contributions: RiskFinding[];
+  evaluatedSignals: RiskSignalEvaluation[];
+}
+
+export interface CiCheckDecision {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  acceptedAsPassing: boolean;
+}
+
+export interface CiDecisionTrace {
+  passed: boolean;
+  totalChecks: number;
+  passingChecks: number;
+  pendingChecks: number;
+  failedChecks: number;
+  checks: CiCheckDecision[];
+  reasons: string[];
+}
+
+export interface PolicyDecisionTrace {
+  source: "default" | "repository";
+  rulesEvaluated: number;
+  failures: PolicyFailure[];
+}
+
+export interface VerdictReason {
+  code: string;
+  message: string;
+  source: "risk" | "ci" | "policy" | "configuration";
+  severity: "info" | "review" | "failure";
+}
+
+export interface VerdictDecisionTrace {
+  verdict: Verdict;
+  checkConclusion: "success" | "neutral" | "failure";
+  reasons: VerdictReason[];
+}
+
 export type TestMatchReason =
   | "changed-test"
   | "direct-dependent"
@@ -104,6 +158,22 @@ export interface TestImpactResult {
   missingTestCoverage: string[];
   suggestedCommands: string[];
   testMappings: TestFileMapping[];
+}
+
+export interface VerificationDecisionTrace {
+  scope: PullRequestScopeMetrics;
+  risk: RiskDecisionTrace;
+  tests: {
+    changedSourceFiles: number;
+    coveredSourceFiles: number;
+    uncoveredSourceFiles: number;
+    impactedTests: string[];
+    missingTestCoverage: string[];
+    testMappings: TestFileMapping[];
+  };
+  ci: CiDecisionTrace;
+  policy: PolicyDecisionTrace;
+  verdict: VerdictDecisionTrace;
 }
 
 export interface PolicyFailure {
@@ -160,6 +230,7 @@ export interface VerificationResult {
   commentBody: string;
   verdict: Verdict;
   checkConclusion: "success" | "neutral" | "failure";
+  decisionTrace?: VerificationDecisionTrace;
 }
 
 export interface RepositoryRecord {
