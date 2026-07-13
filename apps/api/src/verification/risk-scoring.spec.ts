@@ -165,4 +165,54 @@ describe("scoreRisk", () => {
       "skipped-tests",
     );
   });
+
+  it("GIVEN categorized and uncategorized changes WHEN scoring risk THEN only unmatched non-doc files are diagnosed", () => {
+    const request = {
+      ...safeDocsPr,
+      changedFiles: [
+        { path: "src/zeta/profile.ts", additions: 4, deletions: 1 },
+        { path: "src/auth/session.ts", additions: 4, deletions: 1 },
+        { path: "src/payment/checkout.ts", additions: 4, deletions: 1 },
+        { path: "src/zeta/profile.ts", additions: 2, deletions: 0 },
+        { path: "README.md", additions: 1, deletions: 0 },
+      ],
+      repositoryFiles: {
+        "src/zeta/profile.ts": "export const profile = true;",
+        "src/auth/session.ts": "export const session = true;",
+        "src/payment/checkout.ts": "export const checkout = true;",
+      },
+    };
+    const result = scoreRisk(
+      request,
+      policy,
+      mapImpactedTests(request.changedFiles, request.repositoryFiles),
+    );
+
+    expect(result.uncategorizedFiles).toEqual(["src/zeta/profile.ts"]);
+    expect(result.riskFindings.map((finding) => finding.code)).toEqual(
+      expect.arrayContaining(["auth", "payment", "missing-tests"]),
+    );
+  });
+
+  it("GIVEN only uncategorized files with mapped tests WHEN scoring risk THEN diagnostics do not change risk", () => {
+    const request = {
+      ...safeDocsPr,
+      changedFiles: [
+        { path: "src/profile.ts", additions: 4, deletions: 1 },
+      ],
+      repositoryFiles: {
+        "src/profile.ts": "export const profile = true;",
+        "tests/profile.spec.ts": "describe('profile', () => {});",
+      },
+    };
+    const testImpact = mapImpactedTests(
+      request.changedFiles,
+      request.repositoryFiles,
+    );
+    const result = scoreRisk(request, policy, testImpact);
+
+    expect(result.uncategorizedFiles).toEqual(["src/profile.ts"]);
+    expect(result.riskScore).toBe(0);
+    expect(result.riskFindings).toEqual([]);
+  });
 });

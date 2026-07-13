@@ -105,6 +105,7 @@ export class VerificationService {
         riskLevel: risk.riskLevel,
         verdict,
         riskFindings: risk.riskFindings,
+        uncategorizedFiles: risk.uncategorizedFiles,
         verificationRequirements,
         suggestedCommands: testImpact.suggestedCommands,
         missingTests: testImpact.missingTestCoverage,
@@ -118,6 +119,9 @@ export class VerificationService {
         riskScore: risk.riskScore,
         riskLevel: risk.riskLevel,
         riskFindings: risk.riskFindings,
+        riskDiagnostics: {
+          uncategorizedFiles: risk.uncategorizedFiles,
+        },
         testImpact,
         policyFailures: policyEvaluation.policyFailures,
         verificationRequirements,
@@ -146,6 +150,7 @@ export class VerificationService {
         riskLevel: RiskLevel.LOW,
         verdict: Verdict.FAIL,
         riskFindings: [],
+        uncategorizedFiles: [],
         verificationRequirements,
         suggestedCommands: testImpact.suggestedCommands,
         missingTests: testImpact.missingTestCoverage,
@@ -159,6 +164,9 @@ export class VerificationService {
         riskScore: 0,
         riskLevel: RiskLevel.LOW,
         riskFindings: [],
+        riskDiagnostics: {
+          uncategorizedFiles: [],
+        },
         testImpact,
         policyFailures: [
           {

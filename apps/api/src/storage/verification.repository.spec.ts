@@ -46,7 +46,9 @@ describe("VerificationRepository", () => {
         impactedTests: ["tests/auth/session.spec.ts"],
         missingTestCoverage: ["src/auth/session.ts"],
         suggestedCommands: ["npm test"],
+        testMappings: [],
       },
+      riskDiagnostics: { uncategorizedFiles: [] },
       policyFailures: [
         {
           code: "manual-review-required",
@@ -126,7 +128,9 @@ describe("VerificationRepository", () => {
         impactedTests: [],
         missingTestCoverage: [],
         suggestedCommands: [],
+        testMappings: [],
       },
+      riskDiagnostics: { uncategorizedFiles: [] },
       policyFailures: [],
       verificationRequirements: [],
       externalReviewFindings: [],
@@ -166,7 +170,9 @@ describe("VerificationRepository", () => {
         impactedTests: ["tests/a.spec.ts"],
         missingTestCoverage: ["src/a.ts"],
         suggestedCommands: ["npm test"],
+        testMappings: [],
       },
+      riskDiagnostics: { uncategorizedFiles: [] },
       policyFailures: [],
       verificationRequirements: [{ code: "add-tests", message: "Add tests" }],
       externalReviewFindings: [
