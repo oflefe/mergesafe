@@ -1,6 +1,4 @@
 import { Injectable } from "@nestjs/common";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
 import {
   RequirementMode,
@@ -177,16 +175,11 @@ function validateRule(rule: unknown, index: number): VerificationPolicyRule {
 @Injectable()
 export class PolicyLoader {
   load(policyText?: string): VerificationPolicy {
-    const fileText =
-      policyText ??
-      (existsSync(this.localPath())
-        ? readFileSync(this.localPath(), "utf8")
-        : undefined);
-    if (!fileText) {
+    if (policyText === undefined || policyText.trim().length === 0) {
       return defaultPolicy;
     }
 
-    const parsed = parse(fileText);
+    const parsed = parse(policyText);
     if (!isRecord(parsed)) {
       throw new PolicyConfigError(
         "Invalid policy config: top-level YAML must be an object.",
@@ -215,23 +208,5 @@ export class PolicyLoader {
         ...defaultPolicy.riskWeights,
       },
     };
-  }
-
-  private localPath(): string {
-    let currentDirectory = process.cwd();
-
-    while (true) {
-      const candidatePath = resolve(currentDirectory, ".agent-pr-verifier.yml");
-      if (existsSync(candidatePath)) {
-        return candidatePath;
-      }
-
-      const parentDirectory = dirname(currentDirectory);
-      if (parentDirectory === currentDirectory) {
-        return resolve(process.cwd(), ".agent-pr-verifier.yml");
-      }
-
-      currentDirectory = parentDirectory;
-    }
   }
 }

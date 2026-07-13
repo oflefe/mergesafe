@@ -157,6 +157,105 @@ curl http://localhost:3001/prs/oflefe%2Fvibe-sec%231/verification
 - open repository `oflefe/vibe-sec`
 - open PR `oflefe/vibe-sec#1`
 
+## Verify Any PR From Any Repo (Local, With GitHub Token)
+
+This flow lets you point MergeSafe at any pull request in any public or accessible private repo and get a full verification result. It uses a GitHub Personal Access Token for evidence fetching — no GitHub App or installation required.
+
+### How It Works
+
+- `GITHUB_TOKEN` is checked first by the evidence fetcher, bypassing the GitHub App installation token flow entirely.
+- Webhook signature verification is skipped when `GITHUB_WEBHOOK_SECRET` is empty and `NODE_ENV` is not `production`.
+- Without `REDIS_URL`, the queue runs inline — verification executes synchronously within the HTTP request.
+- Without an `installationId` in the payload, the GitHub client logs and returns mock IDs instead of posting comments/check runs to GitHub. The verification result is still computed and persisted locally.
+
+### Prerequisites
+
+- API running locally (see Quick Start above).
+- `GITHUB_TOKEN` set in `.env` with read access to the target repo.
+- `jq` and `curl` installed.
+
+### Steps
+
+1. Export your token and target PR coordinates.
+
+```bash
+export GITHUB_TOKEN=ghp_your_token_here
+OWNER=Medsien
+REPO=medsien-api
+PR_NUMBER=2787
+```
+
+2. Fetch real PR metadata from GitHub (needed for the head SHA so CI evidence is pulled correctly).
+
+```bash
+PR_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER")
+```
+
+3. Send a simulated webhook payload to the local endpoint.
+
+```bash
+echo "$PR_DATA" | jq '{
+  action: "opened",
+  pull_request: {
+    number: .number,
+    id: .id,
+    title: .title,
+    body: .body,
+    user: {
+      login: .user.login
+    },
+    head: {
+      ref: .head.ref,
+      sha: .head.sha
+    },
+    base: {
+      ref: .base.ref
+    }
+  },
+  repository: {
+    owner: {
+      login: .base.repo.owner.login
+    },
+    name: .base.repo.name,
+    full_name: .base.repo.full_name
+  }
+}' > /tmp/pr-webhook.json
+
+curl -s -X POST http://localhost:3001/webhooks/github \
+  -H "Content-Type: application/json" \
+  -H "x-github-event: pull_request" \
+  --data-binary @/tmp/pr-webhook.json
+```
+
+4. The endpoint returns `202` with:
+
+```json
+{ "accepted": true, "pullRequest": "Medsien/medsien-api#2787" }
+```
+
+5. Inspect the result via API or dashboard.
+
+```bash
+# List repos
+curl http://localhost:3001/repos
+
+# List PRs for the repo
+curl "http://localhost:3001/repos/$OWNER%2F$REPO/prs"
+
+# Get verification result
+curl "http://localhost:3001/prs/$OWNER%2F$REPO%23$PR_NUMBER/verification"
+```
+
+Or open the dashboard at http://localhost:3000 and navigate to the repository and PR.
+
+### Notes
+
+- The `action` field accepts `opened`, `synchronize`, or `reopened`. Use `opened` for a fresh verification.
+- If the PR has no CI check runs on the head SHA, the evidence fetcher will still return other evidence (commits, changed files, review comments, repo context).
+- The verification result includes risk score, verdict (`PASS` / `NEEDS_REVIEW` / `FAIL`), CI summary, test impact analysis, and policy evaluation.
+- No comment or check run is written back to GitHub in this mode — results are local only.
+
 ## Full GitHub App Mode (Comment + Check Run Write-Back)
 
 Use this mode when you want MergeSafe to post/update PR comments and check runs on GitHub.
