@@ -1,0 +1,160 @@
+name: Rewrite moved test imports
+
+on:
+  push:
+    branches:
+      - agent/separate-tests
+
+permissions:
+  contents: write
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/separate-tests
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rewrite imports and remove resolver workaround
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const repositoryRoot = process.cwd();
+          const apiRoot = path.join(repositoryRoot, 'apps', 'api');
+          const sourceRoot = path.join(apiRoot, 'src');
+          const unitRoot = path.join(apiRoot, 'tests', 'unit');
+
+          function walk(directory) {
+            return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+              const entryPath = path.join(directory, entry.name);
+              return entry.isDirectory() ? walk(entryPath) : [entryPath];
+            });
+          }
+
+          function resolveModule(basePath) {
+            if (fs.existsSync(basePath) && fs.statSync(basePath).isFile()) {
+              return basePath;
+            }
+
+            for (const extension of ['.ts', '.tsx', '.js', '.cjs', '.json']) {
+              const candidate = `${basePath}${extension}`;
+              if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                return candidate;
+              }
+            }
+
+            for (const extension of ['.ts', '.tsx', '.js', '.cjs']) {
+              const candidate = path.join(basePath, `index${extension}`);
+              if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                return basePath;
+              }
+            }
+
+            return undefined;
+          }
+
+          function moduleSpecifier(fromFile, targetPath) {
+            let relativePath = path
+              .relative(path.dirname(fromFile), targetPath)
+              .replaceAll(path.sep, '/');
+            relativePath = relativePath.replace(/\.(?:ts|tsx|js|cjs|json)$/, '');
+            return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+          }
+
+          function rewriteSpecifier(testFile, specifier) {
+            const testRelativePath = path.relative(unitRoot, testFile);
+            const mirroredSourceDirectory = path.join(
+              sourceRoot,
+              path.dirname(testRelativePath),
+            );
+
+            const existingTestTarget = resolveModule(
+              path.resolve(path.dirname(testFile), specifier),
+            );
+            if (existingTestTarget) {
+              return specifier;
+            }
+
+            const originalTarget = path.resolve(
+              mirroredSourceDirectory,
+              specifier,
+            );
+            const sourceTarget = resolveModule(originalTarget);
+            if (sourceTarget) {
+              return moduleSpecifier(testFile, sourceTarget);
+            }
+
+            const legacyTestRoot = `${path.join(apiRoot, 'test')}${path.sep}`;
+            const currentTestRoot = `${path.join(apiRoot, 'tests')}${path.sep}`;
+            if (originalTarget.startsWith(legacyTestRoot)) {
+              const movedTestTarget = resolveModule(
+                `${currentTestRoot}${originalTarget.slice(legacyTestRoot.length)}`,
+              );
+              if (movedTestTarget) {
+                return moduleSpecifier(testFile, movedTestTarget);
+              }
+            }
+
+            throw new Error(
+              `Could not resolve ${specifier} imported by ${path.relative(repositoryRoot, testFile)}`,
+            );
+          }
+
+          const importPattern = /((?:from\s+|import\s*\(\s*|import\s+|jest\.(?:mock|unmock|requireActual)\(\s*)["'])(\.[^"']+)(["'])/g;
+
+          for (const testFile of walk(unitRoot).filter((file) => file.endsWith('.spec.ts'))) {
+            const original = fs.readFileSync(testFile, 'utf8');
+            const rewritten = original.replace(
+              importPattern,
+              (match, prefix, specifier, suffix) =>
+                `${prefix}${rewriteSpecifier(testFile, specifier)}${suffix}`,
+            );
+            fs.writeFileSync(testFile, rewritten);
+          }
+
+          const jestConfigPath = path.join(apiRoot, 'jest.config.cjs');
+          const jestConfig = fs
+            .readFileSync(jestConfigPath, 'utf8')
+            .replace("  resolver: '<rootDir>/tests/jest-resolver.cjs',\n", '');
+          fs.writeFileSync(jestConfigPath, jestConfig);
+
+          const tsconfigPath = path.join(apiRoot, 'tsconfig.json');
+          const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf8'));
+          delete tsconfig.compilerOptions.rootDirs;
+          fs.writeFileSync(tsconfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`);
+
+          for (const obsoletePath of [
+            path.join(apiRoot, 'tests', 'jest-resolver.cjs'),
+            path.join(apiRoot, 'tests', 'unit', 'fixtures', 'pull-request.fixtures.ts'),
+            path.join(apiRoot, 'tests', 'unit', 'helpers', 'create-test-database.ts'),
+            path.join(repositoryRoot, '.github', 'workflows', 'rewrite-test-imports.yml'),
+          ]) {
+            if (fs.existsSync(obsoletePath)) {
+              fs.rmSync(obsoletePath, { force: true });
+            }
+          }
+          NODE
+
+      - name: Validate
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm run test:unit
+          npm run test:integration
+          npm run build
+
+      - name: Commit corrected layout
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: use explicit test imports"
+          git push origin HEAD:agent/separate-tests
