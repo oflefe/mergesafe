@@ -1,7 +1,7 @@
-import { VerificationService } from "./verification.service";
-import { PolicyLoader } from "./policy-loader";
-import { Verdict } from "../domain/types";
-import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
+import { VerificationService } from "../../../src/verification/verification.service";
+import { PolicyLoader } from "../../../src/verification/policy-loader";
+import { Verdict } from "../../../src/domain/types";
+import { safeDocsPr } from "../../fixtures/pull-request.fixtures";
 
 describe("VerificationService", () => {
   it("uses the default policy when the repository has no policy file", () => {

@@ -1,8 +1,8 @@
-import { ChangedFile } from "../domain/types";
+import { ChangedFile } from "../../../src/domain/types";
 import {
   classifyChangedFile,
   classifyChangedFiles,
-} from "./file-classification";
+} from "../../../src/verification/file-classification";
 
 describe("classifyChangedFile", () => {
   it("GIVEN a TypeScript source file WHEN classified THEN it is source", () => {

@@ -3,10 +3,10 @@ import {
   riskyAuthPr,
   dependencyUpdatePr,
   agentLookingPr,
-} from "../../test/fixtures/pull-request.fixtures";
-import { PolicyLoader } from "./policy-loader";
-import { scoreRisk } from "./risk-scoring";
-import { mapImpactedTests } from "./test-impact";
+} from "../../fixtures/pull-request.fixtures";
+import { PolicyLoader } from "../../../src/verification/policy-loader";
+import { scoreRisk } from "../../../src/verification/risk-scoring";
+import { mapImpactedTests } from "../../../src/verification/test-impact";
 
 describe("scoreRisk", () => {
   const policy = new PolicyLoader().load();

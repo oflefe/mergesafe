@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { UnauthorizedException } from '@nestjs/common';
-import { verifyWebhookSignature } from './webhook-signature';
+import { verifyWebhookSignature } from '../../../src/webhooks/webhook-signature';
 
 function signBody(rawBody: Buffer, secret: string): string {
   return `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
