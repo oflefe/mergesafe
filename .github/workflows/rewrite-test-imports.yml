@@ -29,8 +29,9 @@ jobs:
           const repositoryRoot = process.cwd();
           const apiRoot = path.join(repositoryRoot, 'apps', 'api');
           const sourceRoot = path.join(apiRoot, 'src');
-          const unitRoot = path.join(apiRoot, 'tests', 'unit');
+          const legacyTestRoot = path.join(apiRoot, 'test');
           const testsRoot = path.join(apiRoot, 'tests');
+          const unitRoot = path.join(testsRoot, 'unit');
 
           function walk(directory) {
             return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -39,27 +40,8 @@ jobs:
             });
           }
 
-          function resolveModule(basePath) {
-            const candidates = [
-              basePath,
-              `${basePath}.ts`,
-              `${basePath}.tsx`,
-              `${basePath}.js`,
-              `${basePath}.cjs`,
-              `${basePath}.json`,
-              path.join(basePath, 'index.ts'),
-              path.join(basePath, 'index.tsx'),
-              path.join(basePath, 'index.js'),
-            ];
-            return candidates.find((candidate) => fs.existsSync(candidate));
-          }
-
-          function stripExtension(filePath) {
-            return filePath.replace(/\.(?:ts|tsx|js|cjs|json)$/, '');
-          }
-
           function toSpecifier(fromFile, targetPath) {
-            let relative = path.relative(path.dirname(fromFile), stripExtension(targetPath));
+            let relative = path.relative(path.dirname(fromFile), targetPath);
             relative = relative.split(path.sep).join('/');
             return relative.startsWith('.') ? relative : `./${relative}`;
           }
@@ -69,29 +51,22 @@ jobs:
             const mirroredSourceDirectory = path.join(sourceRoot, path.dirname(relativeTestPath));
             const originalTarget = path.resolve(mirroredSourceDirectory, specifier);
 
-            const sourceTarget = resolveModule(originalTarget);
-            if (sourceTarget) {
-              return toSpecifier(testFile, sourceTarget);
+            if (originalTarget === sourceRoot || originalTarget.startsWith(`${sourceRoot}${path.sep}`)) {
+              return toSpecifier(testFile, originalTarget);
             }
 
-            const legacyTestRoot = `${path.join(apiRoot, 'test')}${path.sep}`;
-            if (originalTarget.startsWith(legacyTestRoot)) {
-              const movedTarget = resolveModule(
-                path.join(testsRoot, originalTarget.slice(legacyTestRoot.length)),
+            if (
+              originalTarget === legacyTestRoot ||
+              originalTarget.startsWith(`${legacyTestRoot}${path.sep}`)
+            ) {
+              const movedTarget = path.join(
+                testsRoot,
+                path.relative(legacyTestRoot, originalTarget),
               );
-              if (movedTarget) {
-                return toSpecifier(testFile, movedTarget);
-              }
+              return toSpecifier(testFile, movedTarget);
             }
 
-            const currentTarget = resolveModule(path.resolve(path.dirname(testFile), specifier));
-            if (currentTarget && currentTarget.startsWith(testsRoot)) {
-              return toSpecifier(testFile, currentTarget);
-            }
-
-            throw new Error(
-              `Could not resolve ${specifier} imported by ${path.relative(repositoryRoot, testFile)}`,
-            );
+            return specifier;
           }
 
           const importPattern = /((?:from\s+|import\s*\(\s*|import\s+|jest\.(?:mock|unmock|requireActual)\(\s*)["'])(\.[^"']+)(["'])/g;
@@ -121,10 +96,10 @@ jobs:
           fs.writeFileSync(tsconfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`);
 
           for (const obsoletePath of [
-            path.join(apiRoot, 'tests', 'jest-resolver.cjs'),
-            path.join(apiRoot, 'tests', 'unit', 'fixtures'),
-            path.join(apiRoot, 'tests', 'unit', 'helpers'),
-            path.join(apiRoot, 'tests', 'test'),
+            path.join(testsRoot, 'jest-resolver.cjs'),
+            path.join(unitRoot, 'fixtures'),
+            path.join(unitRoot, 'helpers'),
+            path.join(testsRoot, 'test'),
             path.join(repositoryRoot, '.github', 'workflows', 'rewrite-test-imports.yml'),
           ]) {
             fs.rmSync(obsoletePath, { recursive: true, force: true });
