@@ -397,7 +397,7 @@ describe("GitHubEvidenceFetcher", () => {
       ) {
         return jsonResponse({
           content: toBase64(
-            "import { session } from '../../../src/auth/session';",
+            "import { session } from '../../src/auth/session';",
           ),
           encoding: "base64",
         });

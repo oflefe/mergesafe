@@ -103,7 +103,7 @@ describe("evaluatePolicy", () => {
       repositoryFiles: {
         ...riskyAuthPr.repositoryFiles,
         "tests/integration/auth/session.integration.spec.ts":
-          "import { guard } from '../../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
+          "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
       },
       reviewComments: [
         ...riskyAuthPr.reviewComments,
@@ -223,7 +223,7 @@ describe("evaluatePolicy", () => {
       repositoryFiles: {
         ...riskyAuthPr.repositoryFiles,
         "tests/auth/session.spec.ts":
-          "import { guard } from '../../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
+          "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
       },
       reviewComments: [
         ...riskyAuthPr.reviewComments,
