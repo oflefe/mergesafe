@@ -134,6 +134,38 @@ export interface VerdictDecisionTrace {
   reasons: VerdictReason[];
 }
 
+export type PullRequestType =
+  | "feature"
+  | "bug-fix"
+  | "refactor"
+  | "dependency-update"
+  | "database-migration"
+  | "configuration"
+  | "infrastructure"
+  | "security"
+  | "test-only"
+  | "documentation"
+  | "generated-code";
+
+export interface PullRequestTypeClassificationItem {
+  type: PullRequestType;
+  score: number;
+  source: "deterministic" | "embedding";
+  evidence: string[];
+}
+
+export interface PullRequestTypeClassification {
+  status: "disabled" | "classified" | "abstained" | "unavailable";
+  advisoryOnly: true;
+  classifications: PullRequestTypeClassificationItem[];
+  provider: "ollama";
+  model: string;
+  prototypeVersion: string;
+  inputVersion: string;
+  documentHash: string;
+  message: string;
+}
+
 export type TestMatchReason =
   | "changed-test"
   | "direct-dependent"
@@ -162,6 +194,7 @@ export interface TestImpactResult {
 
 export interface VerificationDecisionTrace {
   scope: PullRequestScopeMetrics;
+  prClassification?: PullRequestTypeClassification;
   risk: RiskDecisionTrace;
   tests: {
     changedSourceFiles: number;

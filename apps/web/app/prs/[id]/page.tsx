@@ -59,6 +59,36 @@ export default async function PullRequestPage({
                   {verification.decisionTrace.scope.sourceLineDelta} lines
                 </li>
               </ul>
+              {verification.decisionTrace.prClassification ? (
+                <>
+                  <h2>PR type classification</h2>
+                  <p>
+                    Advisory only — status: {verification.decisionTrace.prClassification.status}; model: {verification.decisionTrace.prClassification.model}.
+                  </p>
+                  <ul>
+                    {verification.decisionTrace.prClassification.classifications.length === 0 ? (
+                      <li>No PR type classification emitted.</li>
+                    ) : (
+                      verification.decisionTrace.prClassification.classifications.map(
+                        (classification: {
+                          type: string;
+                          source: string;
+                          score: number;
+                        }) => (
+                          <li key={`${classification.source}-${classification.type}`}>
+                            {classification.type} — {classification.source}
+                            {classification.source === "embedding"
+                              ? `, semantic similarity ${classification.score.toFixed(4)}`
+                              : ""}
+                          </li>
+                        ),
+                      )
+                    )}
+                  </ul>
+                  <p>{verification.decisionTrace.prClassification.message}</p>
+                  <p>This classification does not affect risk or verdict.</p>
+                </>
+              ) : null}
               <h2>Risk decision</h2>
               <p>
                 {verification.decisionTrace.risk.score}/100 ({" "}
