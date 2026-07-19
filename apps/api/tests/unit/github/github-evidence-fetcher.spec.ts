@@ -1,8 +1,8 @@
 import {
   EvidenceFetchError,
   GitHubEvidenceFetcher,
-} from "./github-evidence-fetcher";
-import { mapImpactedTests } from "../verification/test-impact";
+} from "../../../src/github/github-evidence-fetcher";
+import { mapImpactedTests } from "../../../src/verification/test-impact";
 
 function toBase64(content: string): string {
   return Buffer.from(content, "utf-8").toString("base64");
@@ -397,7 +397,7 @@ describe("GitHubEvidenceFetcher", () => {
       ) {
         return jsonResponse({
           content: toBase64(
-            "import { session } from '../../src/auth/session';",
+            "import { session } from '../../../src/auth/session';",
           ),
           encoding: "base64",
         });

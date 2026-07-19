@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { PolicyConfigError, PolicyLoader } from "./policy-loader";
+import { PolicyConfigError, PolicyLoader } from "../../../src/verification/policy-loader";
 
 describe("PolicyLoader", () => {
   it("returns the default policy when no repository policy is provided", () => {

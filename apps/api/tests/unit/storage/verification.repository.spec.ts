@@ -1,12 +1,12 @@
-import { VerificationRepository } from "./verification.repository";
-import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
+import { VerificationRepository } from "../../../src/storage/verification.repository";
+import { safeDocsPr } from "../../fixtures/pull-request.fixtures";
 import {
   RiskLevel,
   VerificationResult,
   Verdict,
-} from "../domain/types";
-import { createTestDatabaseClient } from "../../test/helpers/create-test-database";
-import { DatabaseClient, DatabaseTransactionClient } from "./database.pool";
+} from "../../../src/domain/types";
+import { createTestDatabaseClient } from "../../helpers/create-test-database";
+import { DatabaseClient, DatabaseTransactionClient } from "../../../src/storage/database.pool";
 
 describe("VerificationRepository", () => {
   it("GIVEN a verification request WHEN upserting THEN it stores repository and pull request", async () => {

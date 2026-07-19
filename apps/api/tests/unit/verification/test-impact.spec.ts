@@ -1,12 +1,12 @@
-import { mapImpactedTests } from "./test-impact";
+import { mapImpactedTests } from "../../../src/verification/test-impact";
 
 describe("mapImpactedTests", () => {
   it("maps TypeScript imports back to unit and integration tests", () => {
     const result = mapImpactedTests([{ path: "src/auth/session.ts" }], {
       "src/auth/session.ts": `export const session = () => true;`,
-      "src/auth/index.ts": `import { session } from './session';\nexport { session };`,
-      "tests/auth/session.spec.ts": `import { session } from '../../src/auth/session';\ndescribe('session', () => {});`,
-      "tests/auth/session.integration.spec.ts": `import { session } from '../../src/auth/index';\ndescribe('session integration', () => {});`,
+      "src/auth/index.ts": `import { session } from '../../../src/verification/session';\nexport { session };`,
+      "tests/auth/session.spec.ts": `import { session } from '../../../src/auth/session';\ndescribe('session', () => {});`,
+      "tests/auth/session.integration.spec.ts": `import { session } from '../../../src/auth/index';\ndescribe('session integration', () => {});`,
     });
 
     expect(result.impactedTests).toEqual(
@@ -66,7 +66,7 @@ describe("mapImpactedTests", () => {
     const result = mapImpactedTests([{ path: "src/auth/session.ts" }], {
       "src/auth/session.ts": "export const session = true;",
       "test/guard.spec.ts":
-        "import { session } from '../src/auth/session';\ndescribe('guard', () => {});",
+        "import { session } from '../../../src/src/auth/session';\ndescribe('guard', () => {});",
     });
 
     expect(result.testMappings).toContainEqual({
@@ -80,9 +80,9 @@ describe("mapImpactedTests", () => {
     const result = mapImpactedTests([{ path: "src/core/service.ts" }], {
       "src/core/service.ts": "export const service = true;",
       "src/core/index.ts":
-        "import { service } from './service';\nexport { service };",
+        "import { service } from '../../../src/verification/service';\nexport { service };",
       "test/behavior.spec.ts":
-        "import { service } from '../src/core/index';\ndescribe('behavior', () => {});",
+        "import { service } from '../../../src/src/core/index';\ndescribe('behavior', () => {});",
     });
 
     expect(result.testMappings).toContainEqual({
@@ -233,7 +233,7 @@ describe("mapImpactedTests", () => {
       {
         "src/auth/session.ts": "export const session = true;",
         "src/auth/session.spec.ts":
-          "import { session } from './session';\ndescribe('session', () => {});",
+          "import { session } from '../../../src/verification/session';\ndescribe('session', () => {});",
       },
     );
 
