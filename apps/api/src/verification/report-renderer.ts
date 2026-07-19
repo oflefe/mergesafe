@@ -1,9 +1,10 @@
 import {
   ExternalReviewFinding,
+  PullRequestTypeClassification,
   RiskFinding,
   RiskLevel,
-  VerificationRequirement,
   VerificationDecisionTrace,
+  VerificationRequirement,
   Verdict,
 } from "../domain/types";
 
@@ -32,6 +33,29 @@ function verdictLabel(verdict: Verdict): string {
   return "Do not merge until required evidence is added";
 }
 
+function renderPrClassification(
+  classification: PullRequestTypeClassification,
+): string[] {
+  const items = classification.classifications.map((item) => {
+    const score =
+      item.source === "embedding"
+        ? `, semantic similarity ${item.score.toFixed(4)}`
+        : "";
+    return `${item.type} (${item.source}${score})`;
+  });
+
+  return [
+    "",
+    "## PR Type Classification (advisory)",
+    `- Status: ${classification.status}; model: ${classification.model}; prototype set: ${classification.prototypeVersion}.`,
+    items.length > 0
+      ? listWithLimit(items)
+      : "- No PR type classification was emitted.",
+    `- ${classification.message}`,
+    "- This classification does not affect risk score, policy evaluation, or verdict.",
+  ];
+}
+
 function renderDecisionTrace(trace: VerificationDecisionTrace): string[] {
   const triggeredSignals = trace.risk.evaluatedSignals
     .filter((signal) => signal.triggered)
@@ -44,6 +68,9 @@ function renderDecisionTrace(trace: VerificationDecisionTrace): string[] {
     `- ${trace.scope.totalFiles} files: ${trace.scope.sourceFiles} source, ${trace.scope.testFiles} test, ${trace.scope.documentationFiles} documentation, ${trace.scope.configurationFiles} configuration, ${trace.scope.otherFiles} other.`,
     `- ${trace.scope.additions} additions, ${trace.scope.deletions} deletions, ${trace.scope.totalLineDelta} total changed lines.`,
     `- Source-only delta: ${trace.scope.sourceAdditions} additions, ${trace.scope.sourceDeletions} deletions, ${trace.scope.sourceLineDelta} changed lines.`,
+    ...(trace.prClassification
+      ? renderPrClassification(trace.prClassification)
+      : []),
     "",
     "## Risk Decision",
     `- Score: ${trace.risk.score}/100 (${trace.risk.level}).`,

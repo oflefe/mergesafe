@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
+  PullRequestTypeClassification,
   RiskLevel,
   TestImpactResult,
   Verdict,
@@ -51,7 +52,10 @@ function buildTestDecisionTrace(
 export class VerificationService {
   constructor(private readonly policyLoader: PolicyLoader) {}
 
-  verify(request: VerificationRequest): VerificationResult {
+  verify(
+    request: VerificationRequest,
+    prClassification?: PullRequestTypeClassification,
+  ): VerificationResult {
     const testImpactMapping = mapImpactedTests(
       request.changedFiles,
       request.repositoryFiles,
@@ -110,8 +114,9 @@ export class VerificationService {
         policyFailures: policyEvaluation.policyFailures,
         ci: ciEvaluation.decisionTrace,
       });
-      const decisionTrace = {
+      const decisionTrace: VerificationDecisionTrace = {
         scope,
+        ...(prClassification ? { prClassification } : {}),
         risk: {
           score: risk.riskScore,
           level: risk.riskLevel,
@@ -187,8 +192,9 @@ export class VerificationService {
         policyFailures: invalidPolicyFailures,
         ci: ciEvaluation.decisionTrace,
       });
-      const decisionTrace = {
+      const decisionTrace: VerificationDecisionTrace = {
         scope,
+        ...(prClassification ? { prClassification } : {}),
         risk: {
           score: 0,
           level: RiskLevel.LOW,
@@ -198,7 +204,7 @@ export class VerificationService {
         tests: testDecisionTrace,
         ci: ciEvaluation.decisionTrace,
         policy: {
-          source: "repository" as const,
+          source: "repository",
           rulesEvaluated: 0,
           failures: invalidPolicyFailures,
         },

@@ -10,8 +10,11 @@ import {
 import { createDatabaseClient, DATABASE_CLIENT } from "./storage/database.pool";
 import { DatabaseShutdownService } from "./storage/database-shutdown.service";
 import { VerificationRepository } from "./storage/verification.repository";
-import { VerificationOrchestrator } from "./verification/verification.orchestrator";
+import { OllamaEmbeddingClient } from "./verification/pr-classification/embedding-client";
+import { PullRequestTypeClassifier } from "./verification/pr-classification/pr-type-classifier";
+import { PullRequestTypePrototypeIndex } from "./verification/pr-classification/prototype-index";
 import { PolicyLoader } from "./verification/policy-loader";
+import { VerificationOrchestrator } from "./verification/verification.orchestrator";
 import { VerificationService } from "./verification/verification.service";
 import { GitHubWebhookController } from "./webhooks/github-webhook.controller";
 
@@ -32,6 +35,9 @@ import { GitHubWebhookController } from "./webhooks/github-webhook.controller";
     VerificationRepository,
     PolicyLoader,
     VerificationService,
+    OllamaEmbeddingClient,
+    PullRequestTypePrototypeIndex,
+    PullRequestTypeClassifier,
     VerificationOrchestrator,
     {
       provide: VERIFICATION_QUEUE,
