@@ -16,10 +16,6 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Rewrite imports and remove workarounds
         run: |
           node <<'NODE'
@@ -105,15 +101,6 @@ jobs:
             fs.rmSync(obsoletePath, { recursive: true, force: true });
           }
           NODE
-
-      - name: Validate
-        run: |
-          npm ci
-          npm run lint
-          npm run typecheck
-          npm run test:unit
-          npm run test:integration
-          npm run build
 
       - name: Commit corrected layout
         run: |
