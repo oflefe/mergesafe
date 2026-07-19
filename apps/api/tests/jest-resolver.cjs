@@ -1,5 +1,6 @@
 const path = require('node:path');
 
+// Unit tests mirror the src directory so unchanged relative imports stay valid.
 module.exports = (request, options) => {
   try {
     return options.defaultResolver(request, options);
