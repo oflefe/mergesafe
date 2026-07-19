@@ -1,0 +1,29 @@
+name: Sync stacked base
+
+on:
+  push:
+    branches:
+      - verification-decision-transparency
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: verification-decision-transparency
+          fetch-depth: 0
+
+      - name: Merge updated test-layout base
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/separate-tests
+          git merge -X ours origin/agent/separate-tests --no-edit
+          rm .github/workflows/sync-stack.yml
+          git add -A
+          git commit --amend --no-edit
+          git push origin HEAD:verification-decision-transparency
