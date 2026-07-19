@@ -3,8 +3,8 @@ import {
   RiskLevel,
   VerificationDecisionTrace,
   Verdict,
-} from "../../domain/types";
-import { renderVerificationReport } from "../report-renderer";
+} from "../../../../src/domain/types";
+import { renderVerificationReport } from "../../../../src/verification/report-renderer";
 
 const classification: PullRequestTypeClassification = {
   status: "classified",

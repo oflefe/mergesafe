@@ -1,5 +1,5 @@
-import { VerificationRequest } from "../../domain/types";
-import { buildPullRequestEmbeddingDocument } from "./pr-embedding-document";
+import { VerificationRequest } from "../../../../src/domain/types";
+import { buildPullRequestEmbeddingDocument } from "../../../../src/verification/pr-classification/pr-embedding-document";
 
 const request: VerificationRequest = {
   repoOwner: "acme",

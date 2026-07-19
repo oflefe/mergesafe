@@ -1,7 +1,7 @@
 import {
   readOllamaEmbeddingConfig,
   requestOllamaEmbeddings,
-} from "./embedding-client";
+} from "../../../../src/verification/pr-classification/embedding-client";
 
 describe("Ollama embedding client", () => {
   it("reads safe defaults and stays disabled unless explicitly enabled", () => {

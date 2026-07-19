@@ -1,13 +1,13 @@
 import {
   VerificationRequest,
-} from "../../domain/types";
-import { OllamaEmbeddingClient } from "./embedding-client";
-import { PullRequestTypePrototypeIndex } from "./prototype-index";
+} from "../../../../src/domain/types";
+import { OllamaEmbeddingClient } from "../../../../src/verification/pr-classification/embedding-client";
+import { PullRequestTypePrototypeIndex } from "../../../../src/verification/pr-classification/prototype-index";
 import {
   classifyPullRequestTypeDeterministically,
   cosineSimilarity,
   PullRequestTypeClassifier,
-} from "./pr-type-classifier";
+} from "../../../../src/verification/pr-classification/pr-type-classifier";
 
 function request(
   overrides: Partial<VerificationRequest> = {},

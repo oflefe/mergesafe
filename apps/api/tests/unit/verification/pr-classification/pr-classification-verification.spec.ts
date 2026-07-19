@@ -1,9 +1,9 @@
 import {
   PullRequestTypeClassification,
   VerificationRequest,
-} from "../../domain/types";
-import { PolicyLoader } from "../policy-loader";
-import { VerificationService } from "../verification.service";
+} from "../../../../src/domain/types";
+import { PolicyLoader } from "../../../../src/verification/policy-loader";
+import { VerificationService } from "../../../../src/verification/verification.service";
 
 const request: VerificationRequest = {
   repoOwner: "acme",

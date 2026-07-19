@@ -1,5 +1,5 @@
-import { CheckRunSnapshot } from "../domain/types";
-import { evaluateCiChecks } from "./ci-decision";
+import { CheckRunSnapshot } from "../../../src/domain/types";
+import { evaluateCiChecks } from "../../../src/verification/ci-decision";
 
 describe("evaluateCiChecks", () => {
   it("GIVEN no checks WHEN evaluating CI THEN it fails with a no-check reason", () => {

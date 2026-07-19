@@ -3,8 +3,8 @@ import {
   PolicyFailure,
   RiskLevel,
   Verdict,
-} from "../domain/types";
-import { evaluateVerdict } from "./verdict-decision";
+} from "../../../src/domain/types";
+import { evaluateVerdict } from "../../../src/verification/verdict-decision";
 
 const greenCi: CiDecisionTrace = {
   passed: true,

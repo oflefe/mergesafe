@@ -1,12 +1,12 @@
-import { evaluatePolicy } from "./policy-evaluator";
-import { PolicyLoader } from "./policy-loader";
-import { mapImpactedTests } from "./test-impact";
-import { Verdict } from "../domain/types";
+import { evaluatePolicy } from "../../../src/verification/policy-evaluator";
+import { PolicyLoader } from "../../../src/verification/policy-loader";
+import { mapImpactedTests } from "../../../src/verification/test-impact";
+import { Verdict } from "../../../src/domain/types";
 import {
   safeDocsPr,
   riskyAuthPr,
   migrationPr,
-} from "../../test/fixtures/pull-request.fixtures";
+} from "../../fixtures/pull-request.fixtures";
 
 const policyText = `
 version: 1
@@ -103,7 +103,7 @@ describe("evaluatePolicy", () => {
       repositoryFiles: {
         ...riskyAuthPr.repositoryFiles,
         "tests/integration/auth/session.integration.spec.ts":
-          "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
+          "import { guard } from '../../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
       },
       reviewComments: [
         ...riskyAuthPr.reviewComments,
@@ -223,7 +223,7 @@ describe("evaluatePolicy", () => {
       repositoryFiles: {
         ...riskyAuthPr.repositoryFiles,
         "tests/auth/session.spec.ts":
-          "import { guard } from '../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
+          "import { guard } from '../../../src/auth/permission.guard';\ndescribe('guard', () => { it('works', () => guard()); });",
       },
       reviewComments: [
         ...riskyAuthPr.reviewComments,

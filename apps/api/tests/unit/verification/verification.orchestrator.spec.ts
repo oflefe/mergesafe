@@ -1,9 +1,9 @@
-import { VerificationRequest, Verdict } from "../domain/types";
-import { GitHubAppClient } from "../github/github.client";
-import { VerificationRepository } from "../storage/verification.repository";
-import { PullRequestTypeClassifier } from "./pr-classification/pr-type-classifier";
-import { VerificationOrchestrator } from "./verification.orchestrator";
-import { VerificationService } from "./verification.service";
+import { VerificationRequest, Verdict } from "../../../src/domain/types";
+import { GitHubAppClient } from "../../../src/github/github.client";
+import { VerificationRepository } from "../../../src/storage/verification.repository";
+import { PullRequestTypeClassifier } from "../../../src/verification/pr-classification/pr-type-classifier";
+import { VerificationOrchestrator } from "../../../src/verification/verification.orchestrator";
+import { VerificationService } from "../../../src/verification/verification.service";
 
 const request = {
   repoOwner: "acme",

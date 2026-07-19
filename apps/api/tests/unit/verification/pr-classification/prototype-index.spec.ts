@@ -1,5 +1,5 @@
-import { OllamaEmbeddingClient } from "./embedding-client";
-import { PullRequestTypePrototypeIndex } from "./prototype-index";
+import { OllamaEmbeddingClient } from "../../../../src/verification/pr-classification/embedding-client";
+import { PullRequestTypePrototypeIndex } from "../../../../src/verification/pr-classification/prototype-index";
 
 describe("PullRequestTypePrototypeIndex", () => {
   it("ingests semantic prototypes once and reuses the cached index", async () => {

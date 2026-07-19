@@ -1,4 +1,4 @@
-import { analyzePullRequestScope } from "./scope-analysis";
+import { analyzePullRequestScope } from "../../../src/verification/scope-analysis";
 
 describe("analyzePullRequestScope", () => {
   it("GIVEN a mixed pull request WHEN analyzing scope THEN it reports file and line metrics by kind", () => {
