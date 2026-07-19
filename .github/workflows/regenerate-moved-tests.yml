@@ -1,0 +1,164 @@
+name: Regenerate moved tests safely
+
+on:
+  push:
+    branches:
+      - agent/separate-tests
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/separate-tests
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Restore tests and rewrite only module specifiers
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { execFileSync } = require('node:child_process');
+          const ts = require('typescript');
+
+          const root = process.cwd();
+          const apiRoot = path.join(root, 'apps', 'api');
+          const sourceRoot = path.join(apiRoot, 'src');
+          const legacyTestRoot = path.join(apiRoot, 'test');
+          const testsRoot = path.join(apiRoot, 'tests');
+          const unitRoot = path.join(testsRoot, 'unit');
+
+          const sourceTests = execFileSync(
+            'git',
+            ['ls-tree', '-r', '--name-only', 'origin/main', 'apps/api/src'],
+            { encoding: 'utf8' },
+          )
+            .trim()
+            .split('\n')
+            .filter((file) => file.endsWith('.spec.ts'));
+
+          function isWithin(candidate, directory) {
+            return candidate === directory || candidate.startsWith(`${directory}${path.sep}`);
+          }
+
+          function toSpecifier(fromFile, targetPath) {
+            let relative = path.relative(path.dirname(fromFile), targetPath);
+            relative = relative.split(path.sep).join('/');
+            return relative.startsWith('.') ? relative : `./${relative}`;
+          }
+
+          for (const sourcePath of sourceTests) {
+            const relativePath = path.relative('apps/api/src', sourcePath);
+            const destinationPath = path.join(unitRoot, relativePath);
+            const original = execFileSync(
+              'git',
+              ['show', `origin/main:${sourcePath}`],
+              { encoding: 'utf8' },
+            );
+            const sourceFile = ts.createSourceFile(
+              sourcePath,
+              original,
+              ts.ScriptTarget.Latest,
+              true,
+              ts.ScriptKind.TS,
+            );
+            const edits = [];
+
+            function addModuleSpecifier(literal) {
+              const specifier = literal.text;
+              if (!specifier.startsWith('.')) return;
+
+              const originalTarget = path.resolve(
+                path.dirname(path.join(root, sourcePath)),
+                specifier,
+              );
+              let target = originalTarget;
+              if (isWithin(originalTarget, legacyTestRoot)) {
+                target = path.join(
+                  testsRoot,
+                  path.relative(legacyTestRoot, originalTarget),
+                );
+              } else if (!isWithin(originalTarget, sourceRoot)) {
+                return;
+              }
+
+              edits.push({
+                start: literal.getStart(sourceFile) + 1,
+                end: literal.getEnd() - 1,
+                value: toSpecifier(destinationPath, target),
+              });
+            }
+
+            function visit(node) {
+              if (
+                (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+                node.moduleSpecifier &&
+                ts.isStringLiteral(node.moduleSpecifier)
+              ) {
+                addModuleSpecifier(node.moduleSpecifier);
+              } else if (
+                ts.isImportEqualsDeclaration(node) &&
+                ts.isExternalModuleReference(node.moduleReference) &&
+                node.moduleReference.expression &&
+                ts.isStringLiteral(node.moduleReference.expression)
+              ) {
+                addModuleSpecifier(node.moduleReference.expression);
+              } else if (ts.isCallExpression(node) && node.arguments.length > 0) {
+                const callee = node.expression.getText(sourceFile);
+                if (
+                  ['import', 'jest.mock', 'jest.unmock', 'jest.requireActual'].includes(callee) &&
+                  ts.isStringLiteral(node.arguments[0])
+                ) {
+                  addModuleSpecifier(node.arguments[0]);
+                }
+              }
+              ts.forEachChild(node, visit);
+            }
+
+            visit(sourceFile);
+            let rewritten = original;
+            for (const edit of edits.sort((a, b) => b.start - a.start)) {
+              rewritten = `${rewritten.slice(0, edit.start)}${edit.value}${rewritten.slice(edit.end)}`;
+            }
+
+            fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+            fs.writeFileSync(destinationPath, rewritten);
+          }
+
+          for (const obsoletePath of [
+            path.join(testsRoot, 'jest-resolver.cjs'),
+            path.join(unitRoot, 'fixtures'),
+            path.join(unitRoot, 'helpers'),
+            path.join(testsRoot, 'test'),
+            path.join(root, '.github', 'workflows', 'regenerate-moved-tests.yml'),
+          ]) {
+            fs.rmSync(obsoletePath, { recursive: true, force: true });
+          }
+          NODE
+
+      - name: Validate
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run test:unit
+          npm run test:integration
+          npm run build
+
+      - name: Commit regenerated tests
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: rewrite moved test imports safely"
+          git push origin HEAD:agent/separate-tests
