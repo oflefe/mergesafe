@@ -1,18 +1,51 @@
 import { Injectable } from "@nestjs/common";
 import {
   RiskLevel,
+  TestImpactResult,
   Verdict,
+  VerificationDecisionTrace,
   VerificationRequest,
   VerificationResult,
 } from "../domain/types";
+import { evaluateCiChecks } from "./ci-decision";
 import { summarizeCiEvidence } from "./ci-evidence-summary";
+import { classifyChangedFiles } from "./file-classification";
 import { extractExternalReviewFindings } from "./external-review-findings";
 import { PolicyConfigError, PolicyLoader } from "./policy-loader";
 import { evaluatePolicy } from "./policy-evaluator";
 import { renderVerificationReport } from "./report-renderer";
 import { scoreRisk } from "./risk-scoring";
+import { analyzePullRequestScope } from "./scope-analysis";
 import { suggestTestCommands } from "./test-command-suggestion";
 import { mapImpactedTests } from "./test-impact";
+import { evaluateVerdict } from "./verdict-decision";
+
+function buildTestDecisionTrace(
+  changedFiles: VerificationRequest["changedFiles"],
+  testImpact: TestImpactResult,
+): VerificationDecisionTrace["tests"] {
+  const sourcePaths = new Set(
+    classifyChangedFiles(changedFiles)
+      .filter((file) => file.kind === "source")
+      .map((file) => file.path),
+  );
+  const sourceMappings = testImpact.testMappings.filter((mapping) =>
+    sourcePaths.has(mapping.sourceFile),
+  );
+
+  return {
+    changedSourceFiles: sourceMappings.length,
+    coveredSourceFiles: sourceMappings.filter(
+      (mapping) => mapping.matchedTests.length > 0,
+    ).length,
+    uncoveredSourceFiles: sourceMappings.filter(
+      (mapping) => mapping.matchedTests.length === 0,
+    ).length,
+    impactedTests: testImpact.impactedTests,
+    missingTestCoverage: testImpact.missingTestCoverage,
+    testMappings: testImpact.testMappings,
+  };
+}
 
 @Injectable()
 export class VerificationService {
@@ -31,21 +64,21 @@ export class VerificationService {
       ...testImpactMapping,
       suggestedCommands,
     };
-    const ciPassed =
-      request.checkRuns.length > 0 &&
-      request.checkRuns.every(
-        (checkRun) =>
-          checkRun.conclusion === "success" ||
-          checkRun.conclusion === "neutral" ||
-          checkRun.conclusion === "skipped",
-      );
+    const ciEvaluation = evaluateCiChecks(request.checkRuns);
+    const ciPassed = ciEvaluation.passed;
+    const scope = analyzePullRequestScope(request.changedFiles);
+    const testDecisionTrace = buildTestDecisionTrace(
+      request.changedFiles,
+      testImpact,
+    );
     const externalReviewFindings = extractExternalReviewFindings(
       request.reviewComments,
     );
     const ciSummary = summarizeCiEvidence(request.checkRuns, ciPassed);
 
     try {
-      const policy = this.policyLoader.load(request.policyText);
+      const loadedPolicy = this.policyLoader.loadWithSource(request.policyText);
+      const policy = loadedPolicy.policy;
       const risk = scoreRisk(request, policy, testImpact);
       const policyEvaluation = evaluatePolicy(
         testImpact,
@@ -72,38 +105,33 @@ export class VerificationService {
         });
       }
 
-      const policyFailureVerdict = policyEvaluation.policyFailures.some(
-        (failure) => failure.verdict === Verdict.FAIL,
-      )
-        ? Verdict.FAIL
-        : policyEvaluation.policyFailures.some(
-              (failure) => failure.verdict === Verdict.NEEDS_REVIEW,
-            )
-          ? Verdict.NEEDS_REVIEW
-          : Verdict.PASS;
-      const verdict =
-        policyFailureVerdict === Verdict.FAIL ||
-        risk.riskLevel === RiskLevel.CRITICAL
-          ? Verdict.FAIL
-          : policyFailureVerdict === Verdict.NEEDS_REVIEW ||
-              !ciPassed ||
-              risk.riskLevel === RiskLevel.HIGH ||
-              risk.riskLevel === RiskLevel.MEDIUM
-            ? Verdict.NEEDS_REVIEW
-            : Verdict.PASS;
-      const checkConclusion =
-        policyEvaluation.policyFailures.some(
-          (failure) => failure.verdict === Verdict.FAIL,
-        ) || risk.riskLevel === RiskLevel.CRITICAL
-          ? "failure"
-          : verdict === Verdict.PASS
-            ? "success"
-            : "neutral";
+      const verdictDecision = evaluateVerdict({
+        riskLevel: risk.riskLevel,
+        policyFailures: policyEvaluation.policyFailures,
+        ci: ciEvaluation.decisionTrace,
+      });
+      const decisionTrace = {
+        scope,
+        risk: {
+          score: risk.riskScore,
+          level: risk.riskLevel,
+          contributions: risk.riskFindings,
+          evaluatedSignals: risk.evaluatedSignals,
+        },
+        tests: testDecisionTrace,
+        ci: ciEvaluation.decisionTrace,
+        policy: {
+          source: loadedPolicy.source,
+          rulesEvaluated: policy.rules.length,
+          failures: policyEvaluation.policyFailures,
+        },
+        verdict: verdictDecision,
+      };
 
       const commentBody = renderVerificationReport({
         riskScore: risk.riskScore,
         riskLevel: risk.riskLevel,
-        verdict,
+        verdict: verdictDecision.verdict,
         riskFindings: risk.riskFindings,
         uncategorizedFiles: risk.uncategorizedFiles,
         verificationRequirements,
@@ -111,6 +139,7 @@ export class VerificationService {
         missingTests: testImpact.missingTestCoverage,
         externalReviewFindings,
         ciSummary,
+        decisionTrace,
       });
 
       return {
@@ -130,8 +159,9 @@ export class VerificationService {
         ciSummary,
         likelyAgentAuthored: risk.likelyAgentAuthored,
         commentBody,
-        verdict,
-        checkConclusion,
+        verdict: verdictDecision.verdict,
+        checkConclusion: verdictDecision.checkConclusion,
+        decisionTrace,
       };
     } catch (error) {
       if (!(error instanceof PolicyConfigError)) {
@@ -145,10 +175,39 @@ export class VerificationService {
           message: failureMessage,
         },
       ];
+      const invalidPolicyFailures = [
+        {
+          code: "policy-config-invalid",
+          verdict: Verdict.FAIL,
+          message: failureMessage,
+        },
+      ];
+      const verdictDecision = evaluateVerdict({
+        riskLevel: RiskLevel.LOW,
+        policyFailures: invalidPolicyFailures,
+        ci: ciEvaluation.decisionTrace,
+      });
+      const decisionTrace = {
+        scope,
+        risk: {
+          score: 0,
+          level: RiskLevel.LOW,
+          contributions: [],
+          evaluatedSignals: [],
+        },
+        tests: testDecisionTrace,
+        ci: ciEvaluation.decisionTrace,
+        policy: {
+          source: "repository" as const,
+          rulesEvaluated: 0,
+          failures: invalidPolicyFailures,
+        },
+        verdict: verdictDecision,
+      };
       const commentBody = renderVerificationReport({
         riskScore: 0,
         riskLevel: RiskLevel.LOW,
-        verdict: Verdict.FAIL,
+        verdict: verdictDecision.verdict,
         riskFindings: [],
         uncategorizedFiles: [],
         verificationRequirements,
@@ -156,6 +215,7 @@ export class VerificationService {
         missingTests: testImpact.missingTestCoverage,
         externalReviewFindings,
         ciSummary,
+        decisionTrace,
       });
 
       return {
@@ -168,21 +228,16 @@ export class VerificationService {
           uncategorizedFiles: [],
         },
         testImpact,
-        policyFailures: [
-          {
-            code: "policy-config-invalid",
-            verdict: Verdict.FAIL,
-            message: failureMessage,
-          },
-        ],
+        policyFailures: invalidPolicyFailures,
         verificationRequirements,
         externalReviewFindings,
         ciPassed,
         ciSummary,
         likelyAgentAuthored: false,
         commentBody,
-        verdict: Verdict.FAIL,
-        checkConclusion: "failure",
+        verdict: verdictDecision.verdict,
+        checkConclusion: verdictDecision.checkConclusion,
+        decisionTrace,
       };
     }
   }
