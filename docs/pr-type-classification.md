@@ -16,6 +16,8 @@ Deterministic types include documentation, test-only, dependency-update, databas
 
 Embedding prototypes cover the ambiguous intent labels feature, bug-fix, refactor, and security.
 
+Classifier tests live under `apps/api/tests/unit/verification/pr-classification/`.
+
 ## Local model
 
 The default provider is an Ollama server using `all-minilm`, a small embedding-only model.
