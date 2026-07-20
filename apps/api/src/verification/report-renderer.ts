@@ -3,6 +3,7 @@ import {
   RiskFinding,
   RiskLevel,
   VerificationRequirement,
+  VerificationDecisionTrace,
   Verdict,
 } from "../domain/types";
 
@@ -31,6 +32,54 @@ function verdictLabel(verdict: Verdict): string {
   return "Do not merge until required evidence is added";
 }
 
+function renderDecisionTrace(trace: VerificationDecisionTrace): string[] {
+  const triggeredSignals = trace.risk.evaluatedSignals
+    .filter((signal) => signal.triggered)
+    .map((signal) => `${signal.code}: ${signal.reason} (+${signal.weight})`);
+  const impactedTests = trace.tests.impactedTests;
+
+  return [
+    "",
+    "## PR Scope",
+    `- ${trace.scope.totalFiles} files: ${trace.scope.sourceFiles} source, ${trace.scope.testFiles} test, ${trace.scope.documentationFiles} documentation, ${trace.scope.configurationFiles} configuration, ${trace.scope.otherFiles} other.`,
+    `- ${trace.scope.additions} additions, ${trace.scope.deletions} deletions, ${trace.scope.totalLineDelta} total changed lines.`,
+    `- Source-only delta: ${trace.scope.sourceAdditions} additions, ${trace.scope.sourceDeletions} deletions, ${trace.scope.sourceLineDelta} changed lines.`,
+    "",
+    "## Risk Decision",
+    `- Score: ${trace.risk.score}/100 (${trace.risk.level}).`,
+    `- ${triggeredSignals.length} of ${trace.risk.evaluatedSignals.length} evaluated signals triggered.`,
+    triggeredSignals.length > 0
+      ? listWithLimit(triggeredSignals)
+      : "- No risk signals triggered.",
+    "",
+    "## Test Evidence",
+    `- ${trace.tests.changedSourceFiles} changed source files: ${trace.tests.coveredSourceFiles} covered, ${trace.tests.uncoveredSourceFiles} uncovered.`,
+    impactedTests.length > 0
+      ? `- Impacted tests: ${listWithLimit(impactedTests).replace(/\n/g, " ")}`
+      : "- No impacted tests were found.",
+    "",
+    "## CI Decision",
+    `- ${trace.ci.passingChecks}/${trace.ci.totalChecks} checks passing; ${trace.ci.pendingChecks} pending; ${trace.ci.failedChecks} failed or unsupported.`,
+    listWithLimit(trace.ci.reasons),
+    "",
+    "## Policy Decision",
+    `- Policy source: ${trace.policy.source}; ${trace.policy.rulesEvaluated} rules evaluated.`,
+    trace.policy.failures.length > 0
+      ? listWithLimit(
+          trace.policy.failures.map((failure) => failure.message),
+        )
+      : "- No policy failures.",
+    "",
+    "## Verdict Explanation",
+    `- Verdict: ${trace.verdict.verdict}; check conclusion: ${trace.verdict.checkConclusion}.`,
+    trace.verdict.reasons.length > 0
+      ? listWithLimit(
+          trace.verdict.reasons.map((reason) => reason.message),
+        )
+      : "- No blocking reasons recorded.",
+  ];
+}
+
 export function renderVerificationReport(input: {
   riskScore: number;
   riskLevel: RiskLevel;
@@ -42,8 +91,9 @@ export function renderVerificationReport(input: {
   uncategorizedFiles: string[];
   externalReviewFindings: ExternalReviewFinding[];
   ciSummary: string;
+  decisionTrace?: VerificationDecisionTrace;
 }): string {
-  return [
+  const report = [
     "<!-- mergesafe-verification -->",
     "## MergeSafe Verification",
     `**Risk score:** ${input.riskScore}/100 (${input.riskLevel})`,
@@ -94,5 +144,11 @@ export function renderVerificationReport(input: {
     "",
     "### CI status",
     `- ${input.ciSummary}`,
-  ].join("\n");
+  ];
+
+  if (input.decisionTrace) {
+    report.push(...renderDecisionTrace(input.decisionTrace));
+  }
+
+  return report.join("\n");
 }
