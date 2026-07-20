@@ -215,4 +215,52 @@ describe("scoreRisk", () => {
     expect(result.riskScore).toBe(0);
     expect(result.riskFindings).toEqual([]);
   });
+
+  it("GIVEN a risk evaluation WHEN signals are exposed THEN triggered signals match findings", () => {
+    const result = scoreRisk(
+      riskyAuthPr,
+      policy,
+      mapImpactedTests(riskyAuthPr.changedFiles, riskyAuthPr.repositoryFiles),
+    );
+
+    expect(
+      result.evaluatedSignals
+        .filter((signal) => signal.triggered)
+        .map((signal) => signal.code),
+    ).toEqual(result.riskFindings.map((finding) => finding.code));
+  });
+
+  it("GIVEN no triggered signals WHEN scoring risk THEN informational signals add no score", () => {
+    const result = scoreRisk(
+      safeDocsPr,
+      policy,
+      mapImpactedTests(safeDocsPr.changedFiles, safeDocsPr.repositoryFiles),
+    );
+
+    expect(result.evaluatedSignals.length).toBeGreaterThan(10);
+    expect(result.evaluatedSignals.every((signal) => !signal.triggered)).toBe(
+      true,
+    );
+    expect(result.riskScore).toBe(0);
+  });
+
+  it("GIVEN a large pull request WHEN scoring risk THEN its observed value and threshold are visible", () => {
+    const result = scoreRisk(
+      agentLookingPr,
+      policy,
+      mapImpactedTests(
+        agentLookingPr.changedFiles,
+        agentLookingPr.repositoryFiles,
+      ),
+    );
+    const signal = result.evaluatedSignals.find(
+      (evaluatedSignal) => evaluatedSignal.code === "large-pr",
+    );
+
+    expect(signal).toMatchObject({
+      triggered: true,
+      observedValue: "12 files, 1080 changed lines",
+      threshold: "12 files or 700 changed lines",
+    });
+  });
 });
