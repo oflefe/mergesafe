@@ -1,5 +1,5 @@
-import { RiskLevel, Verdict } from "../domain/types";
-import { renderVerificationReport } from "./report-renderer";
+import { RiskLevel, Verdict } from "../../../src/domain/types";
+import { renderVerificationReport } from "../../../src/verification/report-renderer";
 
 describe("renderVerificationReport", () => {
   it("GIVEN missing and uncategorized files WHEN rendering THEN both diagnostics are visible", () => {

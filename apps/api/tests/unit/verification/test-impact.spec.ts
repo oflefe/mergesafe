@@ -1,4 +1,4 @@
-import { mapImpactedTests } from "./test-impact";
+import { mapImpactedTests } from "../../../src/verification/test-impact";
 
 describe("mapImpactedTests", () => {
   it("maps TypeScript imports back to unit and integration tests", () => {

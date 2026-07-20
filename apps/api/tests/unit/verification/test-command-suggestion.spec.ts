@@ -1,4 +1,4 @@
-import { suggestTestCommands } from "./test-command-suggestion";
+import { suggestTestCommands } from "../../../src/verification/test-command-suggestion";
 
 describe("suggestTestCommands", () => {
   it("builds unit and integration commands from mapped tests", () => {

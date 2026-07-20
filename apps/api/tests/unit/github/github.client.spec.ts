@@ -1,11 +1,11 @@
-import { GitHubAppClient } from "./github.client";
+import { GitHubAppClient } from "../../../src/github/github.client";
 import {
   RiskLevel,
   VerificationRequest,
   VerificationResult,
   Verdict,
-} from "../domain/types";
-import { safeDocsPr } from "../../test/fixtures/pull-request.fixtures";
+} from "../../../src/domain/types";
+import { safeDocsPr } from "../../fixtures/pull-request.fixtures";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

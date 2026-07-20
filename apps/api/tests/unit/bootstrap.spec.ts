@@ -2,7 +2,7 @@ import {
   loadEnvironment,
   resolveCorsOrigin,
   validateEnvironment,
-} from "./bootstrap";
+} from "../../src/bootstrap";
 
 describe("bootstrap security configuration", () => {
   it("GIVEN DASHBOARD_ORIGIN is configured WHEN resolving CORS origin THEN it uses that exact origin", () => {
